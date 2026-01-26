@@ -358,6 +358,22 @@ export default function Dashboard() {
       throw new Error('Selecione uma instancia e um contato para enviar mensagens.')
     }
 
+    const optimisticId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const timestamp = new Date().toISOString()
+    const optimisticMessage: Message = {
+      id: optimisticId,
+      instance_id: selectedInstance.id,
+      contact_id: selectedContact.id,
+      content,
+      type: 'text',
+      direction: 'outbound',
+      status: 'sent',
+      created_at: timestamp,
+      updated_at: timestamp
+    }
+
+    updateMessageCache(selectedContact.id, (prev) => [...prev, optimisticMessage])
+
     try {
       // Enviar via UAZAPI; o webhook registrará a mensagem no banco
       await sendTextMessage({
@@ -368,8 +384,30 @@ export default function Dashboard() {
 
       await markContactAsRead(selectedContact.id)
 
-      setSendFeedback({ type: 'success', message: 'Mensagem enviada via UAZAPI.' })
+      const { data: insertedMessage, error: insertError } = await supabase
+        .from('messages')
+        .insert({
+          instance_id: selectedInstance.id,
+          contact_id: selectedContact.id,
+          content,
+          type: 'text',
+          direction: 'outbound',
+          status: 'sent'
+        })
+        .select('*')
+        .single()
+
+      if (insertError) {
+        throw insertError
+      }
+
+      if (insertedMessage) {
+        updateMessageCache(selectedContact.id, (prev) =>
+          prev.map((message) => (message.id === optimisticId ? (insertedMessage as Message) : message))
+        )
+      }
     } catch (error) {
+      updateMessageCache(selectedContact.id, (prev) => prev.filter((message) => message.id !== optimisticId))
       const message = error instanceof Error ? error.message : 'Falha ao enviar mensagem via UAZAPI.'
       setSendFeedback({ type: 'error', message })
       throw error
