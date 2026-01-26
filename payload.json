@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "url": "https://kyensxcpwabqpbzrgngy.supabase.co/functions/v1/webhook-uazapi?instance_token=b06522d6-5187-4f43-8459-f7ca859bb652",
+  "events": [
+    "messages",
+    "connection"
+  ],
+  "excludeMessages": [
+    "wasSentByApi"
+  ]
+}

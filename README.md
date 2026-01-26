@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Centralizador de WhatsApp Multi-Instância
+
+Um projeto full-stack para centralizar mensagens de múltiplas instâncias do WhatsApp em uma única interface, utilizando a API Uazaí.
+
+## Stack Tecnológica
+
+- **Front-end**: Next.js (App Router), React, Tailwind CSS, Lucide React
+- **Back-end/BaaS**: Supabase (Auth, Database, Edge Functions)
+- **API de WhatsApp**: Uazaí (compatível com Evolution API/Baileys)
+
+## Funcionalidades
+
+- ✅ Dashboard com layout de chat estilo WhatsApp
+- ✅ Barra lateral com lista de contatos ordenada por última mensagem
+- ✅ Badges indicando a instância (número comercial) de cada chat
+- ✅ Visualização do histórico de mensagens em tempo real
+- ✅ Input para envio de mensagens (visual + console.log)
+- ✅ Realtime Subscriptions do Supabase para atualizações automáticas
+
+## Configuração
+
+### 1. Variáveis de Ambiente
+
+Configure o arquivo `.env.local` com suas credenciais do Supabase:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anon_aqui
+```
+
+### 2. Estrutura do Banco de Dados
+
+O projeto assume as seguintes tabelas no Supabase:
+
+- `instances`: Informações das instâncias do WhatsApp
+- `contacts`: Contatos das conversas
+- `messages`: Mensagens trocadas
+
+### 3. Edge Function
+
+A Edge Function `webhook-uazapi` deve estar configurada para receber webhooks da API Uazaí e popular as tabelas do banco.
 
 ## Getting Started
 
-First, run the development server:
+Instale as dependências e inicie o servidor de desenvolvimento:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra [http://localhost:3000](http://localhost:3000) no seu navegador.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Estrutura do Projeto
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── app/
+│   └── page.tsx              # Página principal
+├── components/
+│   ├── Dashboard.tsx         # Componente principal do dashboard
+│   ├── Sidebar.tsx          # Barra lateral com contatos
+│   ├── ChatArea.tsx         # Área de mensagens
+│   └── MessageInput.tsx     # Input para envio de mensagens
+├── lib/
+│   └── supabase.ts          # Cliente Supabase
+└── types/
+    └── database.ts          # Tipos do banco de dados
+```
 
-## Learn More
+## Próximos Passos
 
-To learn more about Next.js, take a look at the following resources:
+- [ ] Implementar envio real de mensagens via API Uazaí
+- [ ] Adicionar suporte a mídia (imagens, áudios, documentos)
+- [ ] Implementar autenticação de usuários
+- [ ] Adicionar notificações desktop
+- [ ] Criar páginas de configuração de instâncias
+- [ ] Implementar busca de contatos e mensagens
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Para fazer o deploy em produção, utilize o comando:
 
-## Deploy on Vercel
+```bash
+npm run build
+npm start
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Ou faça o deploy diretamente na Vercel conectando seu repositório.
