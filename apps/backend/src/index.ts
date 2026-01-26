@@ -1,7 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 
-import metricsRouter from './routes/metrics'
+import metricsRouter from './routes/metrics.js'
 
 const app = express()
 const PORT = Number(process.env.PORT || 4000)
