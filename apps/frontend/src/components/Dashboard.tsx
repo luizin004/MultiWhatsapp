@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { InstanceWithContacts, Message, Contact } from '@/types/database'
 import Sidebar from './Sidebar'
@@ -10,6 +11,7 @@ import AddInstanceModal from './AddInstanceModal'
 import { sendTextMessage, sendMediaMessage } from '@/services/uazapi'
 import { UazapiSSE, UazapiEvent } from '@/lib/uazapi-sse'
 import InstanceProfileModal from './InstanceProfileModal'
+import { BarChart3 } from 'lucide-react'
 
 export default function Dashboard() {
   const [instances, setInstances] = useState<InstanceWithContacts[]>([])
@@ -403,6 +405,16 @@ export default function Dashboard() {
         <div className="pointer-events-none absolute inset-0 opacity-[0.3]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,211,102,0.12),_transparent_55%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom,_rgba(7,94,84,0.25),_transparent_60%)]" />
+        </div>
+
+        <div className="absolute right-6 top-6 z-20 flex items-center gap-3">
+          <Link
+            href="/metrics"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[#E9EDEF] shadow-lg shadow-black/20 transition hover:bg-white/10"
+          >
+            <BarChart3 className="h-4 w-4 text-[#25D366]" />
+            Painel de métricas
+          </Link>
         </div>
 
         <div className="relative z-10 flex h-full w-full overflow-hidden rounded-3xl border border-white/5 bg-[#111B21] shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
