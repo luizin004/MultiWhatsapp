@@ -161,47 +161,47 @@ export default function InstanceProfileModal({ open, instance, onClose, onUpdate
   if (!open || !instance) return null
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40 px-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white/95 shadow-2xl backdrop-blur">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-[#111B21] shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
+        <div className="flex items-center justify-between border-b border-white/10 bg-[#202C33] px-6 py-4">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">Editar instancia</h3>
-            <p className="text-sm text-slate-500">Atualize nome e foto de perfil.</p>
+            <h3 className="text-lg font-semibold text-[#E9EDEF]">Editar instancia</h3>
+            <p className="text-sm text-[#8696A0]">Atualize nome e foto de perfil.</p>
           </div>
-          <button onClick={onClose} className="rounded-full p-2 text-slate-500 hover:bg-slate-100" title="Fechar">
+          <button onClick={onClose} className="rounded-full p-2 text-white/60 transition hover:bg-white/10 hover:text-white" title="Fechar">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5 px-6 py-5">
+        <form onSubmit={handleSubmit} className="space-y-5 px-6 py-6">
           <div>
-            <label className="text-sm font-medium text-slate-700">Nome da instancia</label>
+            <label className="text-sm font-medium text-[#E9EDEF]">Nome da instancia</label>
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-300"
+              className="mt-1 w-full rounded-xl border border-white/10 bg-[#202C33] px-3 py-2 text-sm text-[#E9EDEF] placeholder:text-[#8696A0] focus:border-[#25D366] focus:outline-none"
               placeholder="Ex: OralAligner - Leticia"
               maxLength={80}
             />
           </div>
 
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-4">
+          <div className="rounded-2xl border border-dashed border-white/10 bg-[#0B141A] p-4">
             <div className="flex items-center gap-4">
               {previewUrl ? (
                 <img src={previewUrl} alt="Pré-visualização" className="h-20 w-20 rounded-xl object-cover" />
               ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-white text-slate-400">
+                <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-white/5 text-white/40">
                   <ImagePlus className="h-8 w-8" />
                 </div>
               )}
               <div className="flex-1">
-                <p className="text-sm font-medium text-slate-800">{photoLabel}</p>
-                <p className="text-xs text-slate-500">PNG ou JPG até 5MB.</p>
+                <p className="text-sm font-medium text-[#E9EDEF]">{photoLabel}</p>
+                <p className="text-xs text-[#8696A0]">PNG ou JPG até 5MB.</p>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <button
                     type="button"
                     onClick={handleFileSelect}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                    className="flex items-center justify-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-sm font-medium text-[#111B21] transition hover:bg-[#1ed061]"
                   >
                     <UploadCloud className="h-4 w-4" />
                     Escolher foto
@@ -209,7 +209,7 @@ export default function InstanceProfileModal({ open, instance, onClose, onUpdate
                   <button
                     type="button"
                     onClick={handleRemovePhoto}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
+                    className="flex items-center justify-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-[#E9EDEF] hover:bg-white/5 disabled:cursor-not-allowed disabled:text-white/30"
                     disabled={!previewUrl && !selectedFile && !instance.profile_pic_url}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -220,21 +220,21 @@ export default function InstanceProfileModal({ open, instance, onClose, onUpdate
             </div>
           </div>
 
-          {error && <p className="text-sm text-rose-600">{error}</p>}
-          {success && <p className="text-sm text-emerald-600">{success}</p>}
+          {error && <p className="text-sm text-[#f7a8a2]">{error}</p>}
+          {success && <p className="text-sm text-[#7dd2a5]">{success}</p>}
 
           <div className="flex items-center justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-[#E9EDEF] hover:bg-white/5"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-600 disabled:opacity-70"
+              className="flex items-center gap-2 rounded-full bg-[#25D366] px-5 py-2 text-sm font-semibold text-[#111B21] transition hover:bg-[#1ed061] disabled:opacity-70"
             >
               {isSaving ? (
                 <>

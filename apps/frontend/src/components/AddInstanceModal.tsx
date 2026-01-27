@@ -1,6 +1,6 @@
 "use client"
 
-import { ReactNode, useState } from "react"
+import { ReactNode, useState, FormEvent } from "react"
 import { supabase } from "@/lib/supabase"
 import { InstanceWithContacts } from "@/types/database"
 import FormField from "@/components/FormField"
@@ -22,8 +22,8 @@ const instructions = [
 
 const Section = ({ title, children, layout }: { title: string; children: ReactNode; layout?: string }) => (
   <section>
-    <p className="text-xs font-semibold uppercase text-slate-400">{title}</p>
-    <div className={layout || "mt-2 grid gap-3"}>{children}</div>
+    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8696A0]">{title}</p>
+    <div className={layout || "mt-3 grid gap-3"}>{children}</div>
   </section>
 )
 
@@ -48,7 +48,7 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
   }
 
   const handleChange = (field: keyof FormState, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }))
+    setForm((prev: FormState) => ({ ...prev, [field]: value }))
   }
 
   const normalizePhone = (phone: string) => phone.replace(/\D/g, "")
@@ -82,7 +82,7 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
     }
   }
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsSubmitting(true)
     setError(null)
@@ -178,47 +178,49 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
     if (webhookUrl) await navigator.clipboard.writeText(webhookUrl)
   }
 
-  const renderField = ({ key, label, placeholder, required, helper }: FieldConfig) => (
-    <FormField
-      key={String(key)}
-      label={label}
-      value={form[key]}
-      placeholder={placeholder}
-      required={required}
-      helper={helper}
-      type={key.toLowerCase().includes("phone") ? "tel" : "text"}
-      onChange={(value) => handleChange(key, value)}
-    />
-  )
-
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40 px-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white/90 shadow-2xl backdrop-blur">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-[#111B21] shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
+        <div className="flex items-center justify-between border-b border-white/10 bg-[#202C33] px-6 py-4">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">Registrar nova instancia</h3>
-            <p className="text-sm text-slate-500">Informe os dados do WhatsApp que sera gerenciado.</p>
+            <h3 className="text-lg font-semibold text-[#E9EDEF]">Registrar nova instancia</h3>
+            <p className="text-sm text-[#8696A0]">Informe os dados do WhatsApp que sera gerenciado.</p>
           </div>
-          <button onClick={closeModal} className="rounded-full p-2 text-slate-500 hover:bg-slate-100" aria-label="Fechar">
+          <button onClick={closeModal} className="rounded-full p-2 text-white/60 transition hover:bg-white/10 hover:text-white" aria-label="Fechar">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5 px-6 py-5">
+        <form onSubmit={handleSubmit} className="space-y-5 px-6 py-6">
           <Section title="Dados da instancia" layout="mt-2 grid gap-3">
-            {instanceFields.map(renderField)}
+            {instanceFields.map(({ key: fieldKey, label, placeholder, required, helper }: FieldConfig) => {
+              const formKey = fieldKey as keyof FormState
+              return (
+                <div key={String(fieldKey)}>
+                  <FormField
+                    label={label}
+                    value={form[formKey]}
+                    placeholder={placeholder}
+                    required={required}
+                    helper={helper}
+                    type={String(fieldKey).toLowerCase().includes("phone") ? "tel" : "text"}
+                    onChange={(value) => handleChange(formKey, value)}
+                  />
+                </div>
+              )
+            })}
           </Section>
 
-          {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+          {error && <p className="rounded-xl bg-[#3a1f21] px-4 py-2 text-sm text-[#f7a8a2]">{error}</p>}
 
-          <div className="flex items-center justify-end space-x-3">
-            <button type="button" onClick={closeModal} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+          <div className="flex items-center justify-end gap-3">
+            <button type="button" onClick={closeModal} className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-[#E9EDEF] hover:bg-white/5">
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex items-center rounded-full bg-[#25D366] px-5 py-2 text-sm font-semibold text-[#111B21] transition hover:bg-[#1ed061] disabled:cursor-not-allowed disabled:opacity-70"
             >
               {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {isSubmitting ? "Salvando..." : "Salvar instancia"}
@@ -227,30 +229,30 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
         </form>
 
         {webhookUrl && (
-          <div className="border-t border-slate-100 bg-slate-50 px-6 py-4">
-            <p className="text-sm font-medium text-slate-800">URL do webhook para configurar na Uazapi</p>
+          <div className="border-t border-white/10 bg-[#0B141A] px-6 py-5">
+            <p className="text-sm font-semibold text-[#E9EDEF]">URL do webhook para configurar na Uazapi</p>
             <div className="mt-2 flex items-center gap-2">
-              <div className="flex-1 truncate rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">{webhookUrl}</div>
-              <button onClick={copyWebhookUrl} className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100">
-                <Copy className="mr-1 h-4 w-4" /> Copiar
+              <div className="flex-1 truncate rounded-xl border border-white/10 bg-[#111B21] px-3 py-2 text-xs text-[#E9EDEF]">{webhookUrl}</div>
+              <button onClick={copyWebhookUrl} className="inline-flex items-center gap-1 rounded-full border border-white/10 px-3 py-2 text-xs font-medium text-[#E9EDEF] hover:bg-white/5">
+                <Copy className="h-4 w-4" /> Copiar
               </button>
             </div>
-            <div className="mt-3 space-y-2 text-xs">
-              {isRegisteringWebhook && (
-                <p className="text-slate-500">Registrando webhook automaticamente...</p>
-              )}
+            <div className="mt-3 space-y-2 text-xs text-[#8696A0]">
+              {isRegisteringWebhook && <p>Registrando webhook automaticamente...</p>}
               {webhookFeedback && (
                 <p
-                  className={`rounded-lg px-3 py-2 font-medium ${{
-                    success: 'bg-emerald-50 text-emerald-700',
-                    error: 'bg-rose-50 text-rose-700'
-                  }[webhookFeedback.type]}`}
+                  className={`rounded-xl px-3 py-2 font-medium ${
+                    {
+                      success: 'bg-[#233d2f] text-[#7dd2a5]',
+                      error: 'bg-[#3a1f21] text-[#f7a8a2]'
+                    }[webhookFeedback.type]
+                  }`}
                 >
                   {webhookFeedback.message}
                 </p>
               )}
             </div>
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-600">
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-[#8696A0]">
               {instructions.map((text) => (
                 <li key={text}>{text}</li>
               ))}

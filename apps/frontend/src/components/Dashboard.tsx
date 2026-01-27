@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { InstanceWithContacts, Message, Contact } from '@/types/database'
 import Sidebar from './Sidebar'
@@ -33,12 +32,6 @@ export default function Dashboard() {
     if (!selectedInstance) return null
     return selectedInstance.contacts?.find((contact) => contact.id === selectedContactId) || null
   }, [selectedInstance, selectedContactId])
-
-  const { connectedInstances, totalContacts } = useMemo(() => {
-    const contacts = instances.reduce((total, instance) => total + (instance.contacts?.length || 0), 0)
-    const connected = instances.filter((instance) => instance.status === 'connected').length
-    return { connectedInstances: connected, totalContacts: contacts }
-  }, [instances])
 
   const updateContactUnreadLocally = useCallback((contactId: string, unreadCount: number) => {
     setInstances((prev) =>
@@ -405,99 +398,64 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="relative flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-24 top-[-8rem] h-[26rem] w-[26rem] rounded-full bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.4),rgba(56,189,248,0)_65%)] blur-3xl animate-[float_20s_ease-in-out_infinite]" />
-        <div className="absolute right-[-10rem] top-[10%] h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.35),rgba(16,185,129,0)_65%)] blur-3xl animate-[float_26s_ease-in-out_infinite]" />
-        <div className="absolute bottom-[-10rem] left-[25%] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.3),rgba(245,158,11,0)_65%)] blur-3xl animate-[float_22s_ease-in-out_infinite]" />
-      </div>
+    <div className="flex min-h-screen w-full items-center justify-center bg-[#0B141A] text-[#E9EDEF]">
+      <div className="relative flex h-screen w-full max-w-[1600px] flex-1 overflow-hidden px-2 py-4 md:px-6">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.3]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,211,102,0.12),_transparent_55%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom,_rgba(7,94,84,0.25),_transparent_60%)]" />
+        </div>
 
-      <div className="relative flex h-full w-full flex-col overflow-hidden px-4 py-4 md:px-8 md:py-6">
-        <header className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur md:flex-row md:items-center md:justify-between">
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-300">VIGIA SERVICE</p>
-            <h1 className="text-2xl font-semibold text-white md:text-3xl">Central de conversas em tempo real</h1>
-            <p className="max-w-xl text-sm text-slate-300">
-              Controle instancias, contatos e mensagens com um painel unico e veloz.
-            </p>
-          </div>
-          <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
-              <p className="text-[10px] uppercase tracking-[0.25em] text-slate-200">Instancias</p>
-              <p className="text-xl font-semibold text-white">{loading ? '...' : instances.length}</p>
-            </div>
-            <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
-              <p className="text-[10px] uppercase tracking-[0.25em] text-slate-200">Conectadas</p>
-              <p className="text-xl font-semibold text-white">{loading ? '...' : connectedInstances}</p>
-            </div>
-            <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
-              <p className="text-[10px] uppercase tracking-[0.25em] text-slate-200">Contatos</p>
-              <p className="text-xl font-semibold text-white">{loading ? '...' : totalContacts}</p>
-            </div>
-          </div>
-          <Link
-            href="/metrics"
-            className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white shadow hover:border-white/40 hover:bg-white/20"
-          >
-            Abrir painel de métricas →
-          </Link>
-        </header>
+        <div className="relative z-10 flex h-full w-full overflow-hidden rounded-3xl border border-white/5 bg-[#111B21] shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+          <Sidebar
+            instances={instances}
+            selectedInstance={selectedInstance}
+            onSelectInstance={handleSelectInstance}
+            loading={loading}
+            onAddInstance={() => setIsModalOpen(true)}
+            onEditInstance={(instance) => setEditingInstance(instance)}
+          />
 
-        <main className="flex-1 min-h-0">
-          <div className="flex h-full w-full min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/10 bg-white shadow-[0_24px_80px_-40px_rgba(15,23,42,0.7)] backdrop-blur-xl md:flex-row">
-            <Sidebar
-              instances={instances}
-              selectedInstance={selectedInstance}
-              onSelectInstance={handleSelectInstance}
-              loading={loading}
-              onAddInstance={() => setIsModalOpen(true)}
-              onEditInstance={(instance) => setEditingInstance(instance)}
-            />
-
-            <div className="flex min-h-0 flex-1 flex-col animate-[fade-up_0.6s_ease_both]" style={{ animationDelay: '120ms' }}>
-              {selectedInstance ? (
-                <>
-                  <ChatArea
-                    messages={messages}
-                    instance={selectedInstance}
-                    selectedContact={selectedContact}
-                    onSelectContact={handleSelectContact}
-                    onPreviewContact={prefetchContactMessages}
+          <div className="flex min-h-0 flex-1 flex-col bg-[#0B141A]">
+            {selectedInstance ? (
+              <>
+                <ChatArea
+                  messages={messages}
+                  instance={selectedInstance}
+                  selectedContact={selectedContact}
+                  onSelectContact={handleSelectContact}
+                  onPreviewContact={prefetchContactMessages}
+                />
+                <div className="border-t border-white/5 bg-[#111B21]">
+                  {sendFeedback && (
+                    <div
+                      className={`border-b border-white/5 px-4 py-2 text-sm ${
+                        sendFeedback.type === 'success'
+                          ? 'bg-[#233d2f] text-[#7dd2a5]'
+                          : 'bg-[#3a1f21] text-[#f7a8a2]'
+                      }`}
+                    >
+                      {sendFeedback.message}
+                    </div>
+                  )}
+                  <MessageInput
+                    onSendMessage={handleSendMessage}
+                    onSendAttachment={handleSendAttachment}
+                    disabled={!selectedContact}
+                    selectedInstanceId={selectedInstance?.id ?? null}
+                    selectedContactId={selectedContact?.id ?? null}
                   />
-                  <div className="border-t border-slate-200/70 bg-white/70">
-                    {sendFeedback && (
-                      <div
-                        className={`text-sm px-4 py-2 ${
-                          sendFeedback.type === 'success'
-                            ? 'bg-emerald-500/15 text-emerald-700 border-b border-emerald-500/20'
-                            : 'bg-rose-500/10 text-rose-700 border-b border-rose-500/20'
-                        }`}
-                      >
-                        {sendFeedback.message}
-                      </div>
-                    )}
-                    <MessageInput
-                      onSendMessage={handleSendMessage}
-                      onSendAttachment={handleSendAttachment}
-                      disabled={!selectedContact}
-                      selectedInstanceId={selectedInstance?.id ?? null}
-                      selectedContactId={selectedContact?.id ?? null}
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="flex flex-1 items-center justify-center p-6 text-slate-500">
-                  <div className="max-w-md rounded-2xl border border-slate-200/70 bg-white/70 p-6 text-center shadow-sm">
-                    <h3 className="text-lg font-semibold text-slate-900">Central de WhatsApp</h3>
-                    <p className="mt-2 text-sm text-slate-600">
-                      Selecione uma instancia para ver as conversas.
-                    </p>
-                  </div>
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center bg-[#0B141A] px-6">
+                <div className="rounded-2xl border border-white/5 bg-[#111B21] px-8 py-10 text-center shadow-2xl">
+                  <p className="text-lg font-semibold text-[#E9EDEF]">Central de conversas</p>
+                  <p className="mt-2 text-sm text-[#8696A0]">Selecione uma instancia na lateral para iniciar uma conversa.</p>
+                </div>
+              </div>
+            )}
           </div>
-        </main>
+        </div>
       </div>
 
       <AddInstanceModal

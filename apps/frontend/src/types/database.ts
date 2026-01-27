@@ -4,6 +4,7 @@ export interface Instance {
   uazapi_instance_id: string
   status: 'connected' | 'disconnected' | 'connecting'
   profile_pic_url?: string | null
+  phone_number?: string | null
   created_at: string
   updated_at: string
 }

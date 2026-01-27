@@ -134,10 +134,10 @@ export default function MessageInput({
   }
 
   return (
-    <div className="border-t border-slate-200/70 bg-white/80 p-4">
+    <div className="border-t border-white/5 bg-[#111B21] px-4 py-3">
       {pendingFile && (
-        <div className="mb-3 rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-sm">
-          <div className="flex gap-3">
+        <div className="mb-3 rounded-2xl border border-white/5 bg-[#0B141A] p-4 text-sm text-[#E9EDEF]">
+          <div className="flex gap-4">
             {previewUrl && pendingFile.type.startsWith('image/') && (
               <img src={previewUrl} alt={pendingFile.name} className="h-20 w-20 rounded-xl object-cover" />
             )}
@@ -145,24 +145,26 @@ export default function MessageInput({
               <video src={previewUrl} className="h-20 w-20 rounded-xl" controls muted />
             )}
             {!pendingFile.type.startsWith('image/') && !pendingFile.type.startsWith('video/') && (
-              <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+              <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-white/5 text-white/70">
                 <FileText className="h-8 w-8" />
               </div>
             )}
-            <div className="flex-1 text-sm text-slate-600">
-              <p className="font-medium text-slate-900">{pendingFile.name}</p>
-              <p>{(pendingFile.size / 1024 / 1024).toFixed(2)} MB · {pendingFile.type || 'arquivo'}</p>
-              <p className="text-xs text-slate-500">Use o campo abaixo para escrever uma legenda antes do envio.</p>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-[#E9EDEF]">{pendingFile.name}</p>
+              <p className="text-xs text-[#8696A0]">
+                {(pendingFile.size / 1024 / 1024).toFixed(2)} MB · {pendingFile.type || 'arquivo'}
+              </p>
+              <p className="mt-2 text-xs text-[#8696A0]">Use o campo abaixo para escrever uma legenda antes do envio.</p>
             </div>
           </div>
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex gap-3">
             <button
               type="button"
               onClick={() => {
                 resetAttachment()
                 setMessage('')
               }}
-              className="flex-1 rounded-xl border border-slate-200 py-2 text-slate-600 hover:bg-slate-100"
+              className="flex-1 rounded-full border border-white/10 px-4 py-2 text-sm text-[#8696A0] transition hover:bg-white/5"
               disabled={isUploading}
             >
               Cancelar
@@ -170,7 +172,7 @@ export default function MessageInput({
             <button
               type="button"
               onClick={handleConfirmAttachment}
-              className="flex-1 rounded-xl bg-slate-900 py-2 text-white hover:bg-slate-800 disabled:opacity-60"
+              className="flex-1 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-[#111B21] transition hover:bg-[#1ed061] disabled:opacity-60"
               disabled={isUploading}
             >
               {isUploading ? 'Enviando...' : 'Enviar arquivo'}
@@ -178,33 +180,34 @@ export default function MessageInput({
           </div>
         </div>
       )}
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
-        <div className="flex space-x-1">
+
+      <form onSubmit={handleSubmit} className="flex items-end gap-3">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="rounded-full p-2 text-white/60 transition hover:bg-white/10 hover:text-white"
+            title="Emoji"
+          >
+            <Smile className="h-5 w-5" />
+          </button>
           <button
             type="button"
             onClick={handleFileSelect}
-            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-40"
+            className="rounded-full p-2 text-white/60 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:text-white/20"
             disabled={disabled || isSubmitting || isUploading || !onSendAttachment}
             title="Anexar arquivo"
           >
-            <Paperclip className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-            title="Emoji"
-          >
-            <Smile className="w-5 h-5" />
+            <Paperclip className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 rounded-full bg-[#202C33] px-4 py-2">
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Digite uma mensagem..."
-            className="w-full px-4 py-2 border border-slate-200 rounded-xl resize-none bg-white/80 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-transparent"
+            placeholder="Digite uma mensagem"
+            className="max-h-32 w-full resize-none bg-transparent text-sm text-[#E9EDEF] placeholder:text-[#8696A0] focus:outline-none"
             rows={1}
             disabled={isSubmitting || disabled}
           />
@@ -213,25 +216,25 @@ export default function MessageInput({
         <button
           type="submit"
           disabled={!message.trim() || isSubmitting || disabled || hasPendingAttachment}
-          className={`p-2 rounded-xl transition-colors ${
+          className={`rounded-full p-3 text-white transition ${
             message.trim() && !isSubmitting && !disabled
-              ? 'bg-slate-900 text-white hover:bg-slate-800'
-              : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+              ? 'bg-[#25D366] hover:bg-[#1ed061]'
+              : 'bg-white/10 text-white/40 cursor-not-allowed'
           }`}
           title={isUploading ? 'Enviando anexo...' : 'Enviar mensagem'}
         >
-          <Send className="w-5 h-5" />
+          <Send className="h-4 w-4" />
         </button>
       </form>
 
-      <div className="mt-2 text-xs text-slate-500 text-center">
+      <div className="mt-2 text-center text-xs text-[#8696A0]">
         {disabled
           ? 'Selecione um contato conectado para enviar mensagens.'
           : isUploading
             ? 'Processando arquivo...'
             : hasPendingAttachment
               ? 'Revise o anexo antes de enviar.'
-              : 'Pressione Enter para enviar, Shift+Enter para nova linha'}
+              : 'Enter envia · Shift + Enter cria nova linha'}
       </div>
 
       <input
