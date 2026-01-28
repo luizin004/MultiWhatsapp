@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, ReactNode, useMemo, useState } from "react"
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { InstanceWithContacts } from "@/types/database"
 import FormField from "@/components/FormField"
@@ -14,19 +14,22 @@ import {
 } from "@/features/add-contact/form-config"
 import { Copy, Loader2, X, ChevronDown, ChevronUp, KeyRound, QrCode } from "lucide-react"
 
-interface AddInstanceModalProps {
-  open: boolean
-  onClose: () => void
-  onInstanceCreated: (instance: InstanceWithContacts) => void
-}
-
-interface ConnectionResultState {
+export interface ConnectionResultState {
   mode: ConnectionMode
   status?: string
   paircode?: string
   qrcode?: string
   token: string
   instanceName: string
+}
+
+interface AddInstanceModalProps {
+  open: boolean
+  onClose: () => void
+  onInstanceCreated: (instance: InstanceWithContacts) => void
+  onConnectionReady: (result: ConnectionResultState) => void
+  onClearConnectionResult: () => void
+  latestConnectionResult: ConnectionResultState | null
 }
 
 const instructions = [
@@ -61,7 +64,14 @@ const connectionModeLabels: Record<ConnectionMode, { title: string; description:
   }
 }
 
-export default function AddInstanceModal({ open, onClose, onInstanceCreated }: AddInstanceModalProps) {
+export default function AddInstanceModal({
+  open,
+  onClose,
+  onInstanceCreated,
+  onConnectionReady,
+  onClearConnectionResult,
+  latestConnectionResult
+}: AddInstanceModalProps) {
   const [form, setForm] = useState<FormState>(initialForm)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -69,28 +79,35 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
   const [isRegisteringWebhook, setIsRegisteringWebhook] = useState(false)
   const [webhookFeedback, setWebhookFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [connectionResult, setConnectionResult] = useState<ConnectionResultState | null>(null)
-  const [showConnectionPopup, setShowConnectionPopup] = useState(false)
   const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [showConnectionDetails, setShowConnectionDetails] = useState(false)
   const edgeBaseUrl = process.env.NEXT_PUBLIC_SUPABASE_EDGE_URL
 
   const log = (...args: unknown[]) => {
     console.log('[AddInstanceModal]', ...args)
   }
 
+  useEffect(() => {
+    if (open && latestConnectionResult) {
+      setShowConnectionDetails(true)
+    } else if (!latestConnectionResult) {
+      setShowConnectionDetails(false)
+    }
+  }, [open, latestConnectionResult])
+
   const connectionStatusColor = useMemo(() => {
-    if (!connectionResult?.status) return 'text-[#E9EDEF]'
-    if (connectionResult.status.toLowerCase().includes('connect')) return 'text-[#7dd2a5]'
-    if (connectionResult.status.toLowerCase().includes('erro')) return 'text-[#f7a8a2]'
+    if (!latestConnectionResult?.status) return 'text-[#E9EDEF]'
+    if (latestConnectionResult.status.toLowerCase().includes('connect')) return 'text-[#7dd2a5]'
+    if (latestConnectionResult.status.toLowerCase().includes('erro')) return 'text-[#f7a8a2]'
     return 'text-[#E9EDEF]'
-  }, [connectionResult?.status])
+  }, [latestConnectionResult?.status])
 
   const qrCodeSrc = useMemo(() => {
-    if (!connectionResult?.qrcode) return null
-    return connectionResult.qrcode.startsWith('data:')
-      ? connectionResult.qrcode
-      : `data:image/png;base64,${connectionResult.qrcode}`
-  }, [connectionResult?.qrcode])
+    if (!latestConnectionResult?.qrcode) return null
+    return latestConnectionResult.qrcode.startsWith('data:')
+      ? latestConnectionResult.qrcode
+      : `data:image/png;base64,${latestConnectionResult.qrcode}`
+  }, [latestConnectionResult?.qrcode])
 
   const copyToClipboard = async (value: string, key: string) => {
     try {
@@ -111,10 +128,8 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
     setError(null)
     setWebhookUrl(null)
     setWebhookFeedback(null)
-    setConnectionResult(null)
     setCopiedField(null)
     setShowAdvanced(false)
-    setShowConnectionPopup(false)
     setIsRegisteringWebhook(false)
     onClose()
   }
@@ -231,7 +246,6 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
     event.preventDefault()
     setIsSubmitting(true)
     setError(null)
-    setConnectionResult(null)
 
     try {
       const instanceName = sanitize(form.instanceName)
@@ -298,17 +312,19 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
       await autoRegisterWebhook(data.instanceToken as string)
 
       log('Atualizando resultados de conexão', data.connection)
-      setConnectionResult({
+      const connectionPayload: ConnectionResultState = {
         mode: data.connectionMode as ConnectionMode,
         status: data.connection?.status,
         paircode: data.connection?.paircode,
         qrcode: data.connection?.qrcode,
         token: data.instanceToken,
         instanceName: data.instanceName || instanceName
-      })
-      setShowConnectionPopup(true)
+      }
+
+      onConnectionReady(connectionPayload)
 
       setForm((prev) => ({ ...initialForm, connectionMode: prev.connectionMode }))
+      closeModal()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido ao salvar a instancia.'
       log('Erro no handleSubmit', message, err)
@@ -401,7 +417,7 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
           <div className="rounded-2xl border border-white/10 bg-[#0B141A] p-4">
             <button
               type="button"
-              onClick={() => setShowAdvanced((prev) => !prev)}
+              onClick={() => setShowAdvanced((prev: boolean) => !prev)}
               className="flex w-full items-center justify-between text-sm font-medium text-[#E9EDEF]"
             >
               <span>Campos avançados (opcionais)</span>
@@ -444,68 +460,93 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
           </div>
         </form>
 
-        {connectionResult && (
-          <div className="border-t border-white/10 bg-gradient-to-br from-[#0B141A] to-[#081214] px-6 py-6">
-            <div className="flex flex-col gap-4 lg:flex-row">
-              <div className="flex-1 rounded-2xl border border-white/10 bg-white/5 p-5">
-                <p className="text-sm font-semibold text-[#8696A0]">Instância criada</p>
-                <p className="text-lg font-bold text-[#E9EDEF]">{connectionResult.instanceName}</p>
-                {connectionResult.status && (
-                  <p className={`mt-1 text-sm font-medium ${connectionStatusColor}`}>
-                    Status: {connectionResult.status}
-                  </p>
-                )}
-                <div className="mt-3 space-y-2 text-xs text-[#8696A0]">
-                  <p>Use o token abaixo para qualquer chamada à UAZAPI.</p>
-                  <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#111B21] px-3 py-2 text-[11px] text-[#E9EDEF]">
-                    <span className="flex-1 truncate">{connectionResult.token}</span>
+        {latestConnectionResult && (
+          <div className="border-t border-white/10 bg-gradient-to-br from-[#0B141A] to-[#081214] px-6 py-4">
+            <button
+              type="button"
+              onClick={() => setShowConnectionDetails((prev) => !prev)}
+              className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm font-semibold text-[#E9EDEF]"
+            >
+              <span>Detalhes da última conexão</span>
+              {showConnectionDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+
+            {showConnectionDetails && (
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#8696A0]">Instância criada</p>
+                      <p className="text-lg font-bold text-[#E9EDEF]">{latestConnectionResult.instanceName}</p>
+                    </div>
                     <button
-                      onClick={() => copyToClipboard(connectionResult.token, 'token')}
-                      className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-xs text-[#E9EDEF] hover:bg-white/10"
+                      type="button"
+                      onClick={() => {
+                        onClearConnectionResult()
+                        setShowConnectionDetails(false)
+                      }}
+                      className="rounded-full px-2 py-1 text-[11px] font-semibold text-[#f7a8a2] transition hover:text-white"
                     >
-                      <Copy className="h-3 w-3" />
-                      {copiedField === 'token' ? 'Copiado!' : 'Copiar'}
+                      Limpar
                     </button>
+                  </div>
+                  {latestConnectionResult.status && (
+                    <p className={`mt-2 text-sm font-medium ${connectionStatusColor}`}>
+                      Status: {latestConnectionResult.status}
+                    </p>
+                  )}
+                  <div className="mt-3 space-y-2 text-xs text-[#8696A0]">
+                    <p>Use o token abaixo para qualquer chamada à UAZAPI.</p>
+                    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#111B21] px-3 py-2 text-[11px] text-[#E9EDEF]">
+                      <span className="flex-1 truncate">{latestConnectionResult.token}</span>
+                      <button
+                        onClick={() => copyToClipboard(latestConnectionResult.token, 'token')}
+                        className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-xs text-[#E9EDEF] hover:bg-white/10"
+                      >
+                        <Copy className="h-3 w-3" />
+                        {copiedField === 'token' ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex-1 rounded-2xl border border-white/10 bg-[#0B141A] p-5">
-                <p className="text-sm font-semibold text-[#E9EDEF]">Como conectar</p>
-                {connectionResult.mode === 'paircode' && connectionResult.paircode ? (
-                  <div className="mt-3 space-y-3">
-                    <p className="text-xs text-[#8696A0]">Abra o WhatsApp no celular → Aparelhos conectados → Conectar com código.</p>
-                    <p className="text-3xl font-bold tracking-[0.4rem] text-[#7dd2a5]">
-                      {connectionResult.paircode.replace(/(.{4})/g, '$1 ').trim()}
-                    </p>
-                    <button
-                      onClick={() => copyToClipboard(connectionResult.paircode!, 'paircode')}
-                      className="inline-flex items-center gap-2 rounded-full border border-[#25D366] px-4 py-2 text-sm font-semibold text-[#25D366] hover:bg-[#1f2c24]"
-                    >
-                      <Copy className="h-4 w-4" />
-                      {copiedField === 'paircode' ? 'Copiado!' : 'Copiar código'}
-                    </button>
-                    <p className="text-xs text-[#8696A0]">O código expira em até 5 minutos.</p>
-                  </div>
-                ) : null}
-
-                {connectionResult.mode === 'qrcode' && qrCodeSrc ? (
-                  <div className="mt-3 space-y-3 text-center">
-                    <p className="text-xs text-[#8696A0]">Leia o QR code no WhatsApp → Aparelhos conectados.</p>
-                    <div className="mx-auto w-48 overflow-hidden rounded-2xl border border-white/20 bg-white p-3">
-                      <img src={qrCodeSrc} alt="QR Code da instância" className="w-full" />
+                <div className="rounded-2xl border border-white/10 bg-[#0B141A] p-4">
+                  <p className="text-sm font-semibold text-[#E9EDEF]">Como conectar</p>
+                  {latestConnectionResult.mode === 'paircode' && latestConnectionResult.paircode ? (
+                    <div className="mt-3 space-y-3">
+                      <p className="text-xs text-[#8696A0]">Abra o WhatsApp no celular → Aparelhos conectados → Conectar com código.</p>
+                      <p className="text-3xl font-bold tracking-[0.4rem] text-[#7dd2a5]">
+                        {latestConnectionResult.paircode.replace(/(.{4})/g, '$1 ').trim()}
+                      </p>
+                      <button
+                        onClick={() => copyToClipboard(latestConnectionResult.paircode!, 'paircode')}
+                        className="inline-flex items-center gap-2 rounded-full border border-[#25D366] px-4 py-2 text-sm font-semibold text-[#25D366] hover:bg-[#1f2c24]"
+                      >
+                        <Copy className="h-4 w-4" />
+                        {copiedField === 'paircode' ? 'Copiado!' : 'Copiar código'}
+                      </button>
+                      <p className="text-xs text-[#8696A0]">O código expira em até 5 minutos.</p>
                     </div>
-                    <p className="text-xs text-[#8696A0]">O QR code se renova automaticamente se expirar.</p>
-                  </div>
-                ) : null}
+                  ) : null}
 
-                {!connectionResult.paircode && !connectionResult.qrcode && (
-                  <p className="mt-3 text-xs text-[#8696A0]">
-                    Aguarde alguns segundos e consulte /instance/status para obter QRCode ou código atualizado.
-                  </p>
-                )}
+                  {latestConnectionResult.mode === 'qrcode' && qrCodeSrc ? (
+                    <div className="mt-3 space-y-3 text-center">
+                      <p className="text-xs text-[#8696A0]">Leia o QR code no WhatsApp → Aparelhos conectados.</p>
+                      <div className="mx-auto w-48 overflow-hidden rounded-2xl border border-white/20 bg-white p-3">
+                        <img src={qrCodeSrc} alt="QR Code da instância" className="w-full" />
+                      </div>
+                      <p className="text-xs text-[#8696A0]">O QR code se renova automaticamente se expirar.</p>
+                    </div>
+                  ) : null}
+
+                  {!latestConnectionResult.paircode && !latestConnectionResult.qrcode && (
+                    <p className="mt-3 text-xs text-[#8696A0]">
+                      Aguarde alguns segundos e consulte /instance/status para obter QRCode ou código atualizado.
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -543,77 +584,6 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
         )}
       </div>
 
-      {showConnectionPopup && connectionResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
-          <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#0B141A] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.8)]">
-            <button
-              onClick={() => setShowConnectionPopup(false)}
-              className="absolute right-3 top-3 rounded-full p-2 text-white/60 transition hover:bg-white/10 hover:text-white"
-              aria-label="Fechar resumo de conexão"
-            >
-              <X className="h-4 w-4" />
-            </button>
-
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8696A0]">Instância pronta para conectar</p>
-            <h4 className="mt-1 text-lg font-bold text-[#E9EDEF]">{connectionResult.instanceName}</h4>
-
-            <div className="mt-4 space-y-2">
-              <p className="text-xs text-[#8696A0]">Token da instância</p>
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#111B21] px-3 py-2 text-xs text-[#E9EDEF]">
-                <span className="flex-1 truncate">{connectionResult.token}</span>
-                <button
-                  onClick={() => copyToClipboard(connectionResult.token, 'popup-token')}
-                  className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-[11px] text-[#E9EDEF] hover:bg-white/10"
-                >
-                  <Copy className="h-3 w-3" />
-                  {copiedField === 'popup-token' ? 'Copiado!' : 'Copiar'}
-                </button>
-              </div>
-            </div>
-
-            {connectionResult.mode === 'paircode' && connectionResult.paircode ? (
-              <div className="mt-5 space-y-2">
-                <p className="text-xs text-[#8696A0]">Código de pareamento</p>
-                <p className="text-3xl font-bold tracking-[0.45rem] text-[#7dd2a5]">
-                  {connectionResult.paircode.replace(/(.{4})/g, '$1 ').trim()}
-                </p>
-                <button
-                  onClick={() => copyToClipboard(connectionResult.paircode!, 'popup-paircode')}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#25D366] px-4 py-2 text-sm font-semibold text-[#25D366] hover:bg-[#1f2c24]"
-                >
-                  <Copy className="h-4 w-4" />
-                  {copiedField === 'popup-paircode' ? 'Copiado!' : 'Copiar código'}
-                </button>
-              </div>
-            ) : null}
-
-            {connectionResult.mode === 'qrcode' && qrCodeSrc ? (
-              <div className="mt-5 space-y-3 text-center">
-                <p className="text-xs text-[#8696A0]">Leia o QR code no WhatsApp em Aparelhos conectados.</p>
-                <div className="mx-auto w-56 overflow-hidden rounded-2xl border border-white/10 bg-white p-4">
-                  <img src={qrCodeSrc} alt="QR Code da instância" className="w-full" />
-                </div>
-              </div>
-            ) : null}
-
-            {!connectionResult.paircode && !connectionResult.qrcode && (
-              <p className="mt-5 text-xs text-[#8696A0]">
-                Assim que a UAZAPI enviar o código, ele aparecerá aqui.
-              </p>
-            )}
-
-            {connectionResult.status && (
-              <p className={`mt-4 text-xs font-semibold ${connectionStatusColor}`}>
-                Status atual: {connectionResult.status}
-              </p>
-            )}
-
-            <p className="mt-6 text-center text-[11px] text-[#8696A0]">
-              Feche este pop-up quando terminar de conectar o WhatsApp.
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

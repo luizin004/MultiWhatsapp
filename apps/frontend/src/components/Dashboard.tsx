@@ -7,11 +7,11 @@ import { InstanceWithContacts, Message, Contact } from '@/types/database'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import MessageInput, { AttachmentPayload } from './MessageInput'
-import AddInstanceModal from './AddInstanceModal'
+import AddInstanceModal, { ConnectionResultState } from './AddInstanceModal'
 import { sendTextMessage, sendMediaMessage } from '@/services/uazapi'
 import { UazapiSSE, UazapiEvent } from '@/lib/uazapi-sse'
 import InstanceProfileModal from './InstanceProfileModal'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, Copy, X } from 'lucide-react'
 
 export default function Dashboard() {
   const [instances, setInstances] = useState<InstanceWithContacts[]>([])
@@ -23,6 +23,9 @@ export default function Dashboard() {
   const [sendFeedback, setSendFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [sseConnection, setSseConnection] = useState<UazapiSSE | null>(null)
   const [editingInstance, setEditingInstance] = useState<InstanceWithContacts | null>(null)
+  const [latestConnectionResult, setLatestConnectionResult] = useState<ConnectionResultState | null>(null)
+  const [showConnectionToast, setShowConnectionToast] = useState(false)
+  const [copiedToastField, setCopiedToastField] = useState<string | null>(null)
   const messageCacheRef = useRef<Record<string, Message[]>>({})
 
   const selectedInstance = useMemo(
@@ -407,6 +410,39 @@ export default function Dashboard() {
     setEditingInstance(null)
   }
 
+  const handleConnectionReady = (result: ConnectionResultState) => {
+    setLatestConnectionResult(result)
+    setShowConnectionToast(true)
+  }
+
+  const handleClearConnectionResult = () => {
+    setLatestConnectionResult(null)
+    setShowConnectionToast(false)
+  }
+
+  const toastQrCodeSrc = useMemo(() => {
+    if (!latestConnectionResult?.qrcode) return null
+    return latestConnectionResult.qrcode.startsWith('data:')
+      ? latestConnectionResult.qrcode
+      : `data:image/png;base64,${latestConnectionResult.qrcode}`
+  }, [latestConnectionResult?.qrcode])
+
+  const handleToastCopy = async (value: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopiedToastField(key)
+      setTimeout(() => {
+        setCopiedToastField((current) => (current === key ? null : current))
+      }, 2000)
+    } catch (error) {
+      console.error('Erro ao copiar dados da conexão:', error)
+    }
+  }
+
+  const handleConnectionToastClose = () => {
+    setShowConnectionToast(false)
+  }
+
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-[#0B141A] text-[#E9EDEF]">
       <div className="relative flex h-screen w-full max-w-[1600px] flex-1 overflow-hidden px-2 py-4 md:px-6">
@@ -482,6 +518,9 @@ export default function Dashboard() {
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onInstanceCreated={handleInstanceCreated}
+        onConnectionReady={handleConnectionReady}
+        onClearConnectionResult={handleClearConnectionResult}
+        latestConnectionResult={latestConnectionResult}
       />
 
       <InstanceProfileModal
@@ -491,6 +530,63 @@ export default function Dashboard() {
         onUpdated={handleInstanceUpdated}
         onDeleted={handleInstanceDeleted}
       />
+
+      {showConnectionToast && latestConnectionResult && (
+        <div className="fixed bottom-6 right-6 z-50 w-80 rounded-2xl border border-white/10 bg-[#111B21] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.45)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8696A0]">Instância pronta</p>
+              <p className="text-sm font-bold text-[#E9EDEF]">{latestConnectionResult.instanceName}</p>
+            </div>
+            <button
+              onClick={handleConnectionToastClose}
+              className="rounded-full p-1 text-white/60 transition hover:bg-white/10 hover:text-white"
+              aria-label="Fechar resumo rápido"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="mt-3 space-y-3 text-xs text-[#8696A0]">
+            <div className="rounded-xl border border-white/10 bg-[#0B141A] px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide">Token</p>
+              <div className="mt-1 flex items-center gap-2 text-[11px] text-[#E9EDEF]">
+                <span className="flex-1 truncate">{latestConnectionResult.token}</span>
+                <button
+                  onClick={() => handleToastCopy(latestConnectionResult.token, 'token')}
+                  className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-[10px] text-[#E9EDEF] hover:bg-white/10"
+                >
+                  <Copy className="h-3 w-3" />
+                  {copiedToastField === 'token' ? 'OK' : 'Copiar'}
+                </button>
+              </div>
+            </div>
+
+            {latestConnectionResult.mode === 'paircode' && latestConnectionResult.paircode ? (
+              <div className="rounded-xl border border-[#25D366] bg-[#13251b] px-3 py-2 text-center">
+                <p className="text-[11px] uppercase tracking-wide text-[#7dd2a5]">Código de pareamento</p>
+                <p className="mt-1 text-2xl font-bold tracking-[0.3rem] text-[#7dd2a5]">
+                  {latestConnectionResult.paircode.replace(/(.{4})/g, '$1 ').trim()}
+                </p>
+                <button
+                  onClick={() => handleToastCopy(latestConnectionResult.paircode!, 'paircode')}
+                  className="mt-2 inline-flex items-center justify-center gap-1 rounded-full border border-[#25D366] px-3 py-1 text-[11px] font-semibold text-[#25D366] hover:bg-[#1f2c24]"
+                >
+                  <Copy className="h-3 w-3" />
+                  {copiedToastField === 'paircode' ? 'Copiado' : 'Copiar'}
+                </button>
+              </div>
+            ) : null}
+
+            {latestConnectionResult.mode === 'qrcode' && toastQrCodeSrc ? (
+              <div className="rounded-xl border border-white/10 bg-white p-3 text-center">
+                <p className="text-[11px] uppercase tracking-wide text-[#0B141A]">QR Code</p>
+                <img src={toastQrCodeSrc} alt="QR Code da instância" className="mx-auto mt-2 w-40" />
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
