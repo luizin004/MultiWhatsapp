@@ -377,7 +377,6 @@ export default function Dashboard() {
     setSelectedInstanceId(instance.id)
     const firstContact = instance.contacts?.[0]
     setSelectedContactId(firstContact ? firstContact.id : null)
-    setIsModalOpen(false)
   }
 
   const handleSelectInstance = (instance: InstanceWithContacts) => {
