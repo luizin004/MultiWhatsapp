@@ -60,9 +60,15 @@ export default function ChatArea({ messages, instance, selectedContact, onSelect
   const filteredContacts = useMemo<Contact[]>(() => {
     if (!contactSearch.trim()) return contacts
     const query = contactSearch.toLowerCase()
+    const numericQuery = query.replace(/\D/g, '')
+
     return contacts.filter((contact: Contact) => {
-      const label = contact.name || contact.phone_number
-      return label.toLowerCase().includes(query)
+      const name = (contact.name || '').toLowerCase()
+      const phone = (contact.phone_number || '').toLowerCase()
+      const normalizedPhone = (contact.phone_number || '').replace(/\D/g, '')
+
+      if (name.includes(query) || phone.includes(query)) return true
+      return Boolean(numericQuery) && normalizedPhone.includes(numericQuery)
     })
   }, [contactSearch, contacts])
 

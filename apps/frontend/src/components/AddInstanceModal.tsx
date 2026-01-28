@@ -77,6 +77,32 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
     console.log('[AddInstanceModal]', ...args)
   }
 
+  const connectionStatusColor = useMemo(() => {
+    if (!connectionResult?.status) return 'text-[#E9EDEF]'
+    if (connectionResult.status.toLowerCase().includes('connect')) return 'text-[#7dd2a5]'
+    if (connectionResult.status.toLowerCase().includes('erro')) return 'text-[#f7a8a2]'
+    return 'text-[#E9EDEF]'
+  }, [connectionResult?.status])
+
+  const qrCodeSrc = useMemo(() => {
+    if (!connectionResult?.qrcode) return null
+    return connectionResult.qrcode.startsWith('data:')
+      ? connectionResult.qrcode
+      : `data:image/png;base64,${connectionResult.qrcode}`
+  }, [connectionResult?.qrcode])
+
+  const copyToClipboard = async (value: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopiedField(key)
+      setTimeout(() => {
+        setCopiedField((current: string | null) => (current === key ? null : current))
+      }, 2000)
+    } catch (error) {
+      console.error('Erro ao copiar para a área de transferência:', error)
+    }
+  }
+
   if (!open) return null
 
   const closeModal = () => {
@@ -288,32 +314,6 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
       setIsSubmitting(false)
     }
   }
-
-  const copyToClipboard = async (value: string, key: string) => {
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopiedField(key)
-      setTimeout(() => {
-        setCopiedField((current) => (current === key ? null : current))
-      }, 2000)
-    } catch (copyError) {
-      console.error('Erro ao copiar para a área de transferência:', copyError)
-    }
-  }
-
-  const connectionStatusColor = useMemo(() => {
-    if (!connectionResult?.status) return 'text-[#E9EDEF]'
-    if (connectionResult.status.toLowerCase().includes('connect')) return 'text-[#7dd2a5]'
-    if (connectionResult.status.toLowerCase().includes('erro')) return 'text-[#f7a8a2]'
-    return 'text-[#E9EDEF]'
-  }, [connectionResult?.status])
-
-  const qrCodeSrc = useMemo(() => {
-    if (!connectionResult?.qrcode) return null
-    return connectionResult.qrcode.startsWith('data:')
-      ? connectionResult.qrcode
-      : `data:image/png;base64,${connectionResult.qrcode}`
-  }, [connectionResult?.qrcode])
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4">
