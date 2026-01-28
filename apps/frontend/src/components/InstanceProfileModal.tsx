@@ -10,6 +10,7 @@ interface InstanceProfileModalProps {
   instance: InstanceWithContacts | null
   onClose: () => void
   onUpdated: (instance: InstanceWithContacts) => void
+  onDeleted: (instanceId: string) => void
 }
 
 const selectWithContacts = `
@@ -17,7 +18,7 @@ const selectWithContacts = `
   contacts:contacts(*)
 `
 
-export default function InstanceProfileModal({ open, instance, onClose, onUpdated }: InstanceProfileModalProps) {
+export default function InstanceProfileModal({ open, instance, onClose, onUpdated, onDeleted }: InstanceProfileModalProps) {
   const [name, setName] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -26,6 +27,7 @@ export default function InstanceProfileModal({ open, instance, onClose, onUpdate
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -158,6 +160,39 @@ export default function InstanceProfileModal({ open, instance, onClose, onUpdate
     return 'Sem foto'
   }, [previewUrl, removePhoto])
 
+  const handleDeleteInstance = async () => {
+    if (!instance || isDeleting) return
+
+    try {
+      setIsDeleting(true)
+      setError(null)
+      setSuccess(null)
+
+      const response = await fetch('/api/instances/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ instanceToken: instance.uazapi_instance_id })
+      })
+
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao excluir a instância na UAZAPI.')
+      }
+
+      onDeleted(instance.id)
+      setSuccess('Instância excluída com sucesso.')
+      onClose()
+    } catch (deleteError) {
+      const message = deleteError instanceof Error ? deleteError.message : 'Não foi possível excluir a instância.'
+      setError(message)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   if (!open || !instance) return null
 
   return (
@@ -223,27 +258,39 @@ export default function InstanceProfileModal({ open, instance, onClose, onUpdate
           {error && <p className="text-sm text-[#f7a8a2]">{error}</p>}
           {success && <p className="text-sm text-[#7dd2a5]">{success}</p>}
 
-          <div className="flex items-center justify-end gap-3 pt-2">
+          <div className="flex flex-col gap-3 pt-2">
             <button
               type="button"
-              onClick={onClose}
-              className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-[#E9EDEF] hover:bg-white/5"
+              onClick={handleDeleteInstance}
+              disabled={isDeleting}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-[#F87171] px-4 py-2 text-sm font-semibold text-[#F87171] transition hover:bg-[#3a1f21] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Cancelar
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {isDeleting ? 'Excluindo...' : 'Excluir instância'}
             </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex items-center gap-2 rounded-full bg-[#25D366] px-5 py-2 text-sm font-semibold text-[#111B21] transition hover:bg-[#1ed061] disabled:opacity-70"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Salvando...
-                </>
-              ) : (
-                'Salvar alterações'
-              )}
-            </button>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-[#E9EDEF] hover:bg-white/5"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="flex items-center gap-2 rounded-full bg-[#25D366] px-5 py-2 text-sm font-semibold text-[#111B21] transition hover:bg-[#1ed061] disabled:opacity-70"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Salvando...
+                  </>
+                ) : (
+                  'Salvar alterações'
+                )}
+              </button>
+            </div>
           </div>
         </form>
 

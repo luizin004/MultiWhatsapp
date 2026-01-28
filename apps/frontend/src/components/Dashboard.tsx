@@ -399,6 +399,15 @@ export default function Dashboard() {
     setEditingInstance(null)
   }
 
+  const handleInstanceDeleted = (instanceId: string) => {
+    setInstances((prev) => prev.filter((instance) => instance.id !== instanceId))
+    if (selectedInstanceId === instanceId) {
+      setSelectedInstanceId(null)
+      setSelectedContactId(null)
+    }
+    setEditingInstance(null)
+  }
+
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-[#0B141A] text-[#E9EDEF]">
       <div className="relative flex h-screen w-full max-w-[1600px] flex-1 overflow-hidden px-2 py-4 md:px-6">
@@ -481,6 +490,7 @@ export default function Dashboard() {
         instance={editingInstance}
         onClose={() => setEditingInstance(null)}
         onUpdated={handleInstanceUpdated}
+        onDeleted={handleInstanceDeleted}
       />
     </div>
   )

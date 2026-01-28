@@ -70,6 +70,7 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
   const [webhookFeedback, setWebhookFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [connectionResult, setConnectionResult] = useState<ConnectionResultState | null>(null)
+  const [showConnectionPopup, setShowConnectionPopup] = useState(false)
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const edgeBaseUrl = process.env.NEXT_PUBLIC_SUPABASE_EDGE_URL
 
@@ -113,6 +114,7 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
     setConnectionResult(null)
     setCopiedField(null)
     setShowAdvanced(false)
+    setShowConnectionPopup(false)
     setIsRegisteringWebhook(false)
     onClose()
   }
@@ -304,6 +306,7 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
         token: data.instanceToken,
         instanceName: data.instanceName || instanceName
       })
+      setShowConnectionPopup(true)
 
       setForm((prev) => ({ ...initialForm, connectionMode: prev.connectionMode }))
     } catch (err) {
@@ -539,6 +542,78 @@ export default function AddInstanceModal({ open, onClose, onInstanceCreated }: A
           </div>
         )}
       </div>
+
+      {showConnectionPopup && connectionResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+          <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#0B141A] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.8)]">
+            <button
+              onClick={() => setShowConnectionPopup(false)}
+              className="absolute right-3 top-3 rounded-full p-2 text-white/60 transition hover:bg-white/10 hover:text-white"
+              aria-label="Fechar resumo de conexão"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8696A0]">Instância pronta para conectar</p>
+            <h4 className="mt-1 text-lg font-bold text-[#E9EDEF]">{connectionResult.instanceName}</h4>
+
+            <div className="mt-4 space-y-2">
+              <p className="text-xs text-[#8696A0]">Token da instância</p>
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#111B21] px-3 py-2 text-xs text-[#E9EDEF]">
+                <span className="flex-1 truncate">{connectionResult.token}</span>
+                <button
+                  onClick={() => copyToClipboard(connectionResult.token, 'popup-token')}
+                  className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-[11px] text-[#E9EDEF] hover:bg-white/10"
+                >
+                  <Copy className="h-3 w-3" />
+                  {copiedField === 'popup-token' ? 'Copiado!' : 'Copiar'}
+                </button>
+              </div>
+            </div>
+
+            {connectionResult.mode === 'paircode' && connectionResult.paircode ? (
+              <div className="mt-5 space-y-2">
+                <p className="text-xs text-[#8696A0]">Código de pareamento</p>
+                <p className="text-3xl font-bold tracking-[0.45rem] text-[#7dd2a5]">
+                  {connectionResult.paircode.replace(/(.{4})/g, '$1 ').trim()}
+                </p>
+                <button
+                  onClick={() => copyToClipboard(connectionResult.paircode!, 'popup-paircode')}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#25D366] px-4 py-2 text-sm font-semibold text-[#25D366] hover:bg-[#1f2c24]"
+                >
+                  <Copy className="h-4 w-4" />
+                  {copiedField === 'popup-paircode' ? 'Copiado!' : 'Copiar código'}
+                </button>
+              </div>
+            ) : null}
+
+            {connectionResult.mode === 'qrcode' && qrCodeSrc ? (
+              <div className="mt-5 space-y-3 text-center">
+                <p className="text-xs text-[#8696A0]">Leia o QR code no WhatsApp em Aparelhos conectados.</p>
+                <div className="mx-auto w-56 overflow-hidden rounded-2xl border border-white/10 bg-white p-4">
+                  <img src={qrCodeSrc} alt="QR Code da instância" className="w-full" />
+                </div>
+              </div>
+            ) : null}
+
+            {!connectionResult.paircode && !connectionResult.qrcode && (
+              <p className="mt-5 text-xs text-[#8696A0]">
+                Assim que a UAZAPI enviar o código, ele aparecerá aqui.
+              </p>
+            )}
+
+            {connectionResult.status && (
+              <p className={`mt-4 text-xs font-semibold ${connectionStatusColor}`}>
+                Status atual: {connectionResult.status}
+              </p>
+            )}
+
+            <p className="mt-6 text-center text-[11px] text-[#8696A0]">
+              Feche este pop-up quando terminar de conectar o WhatsApp.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
