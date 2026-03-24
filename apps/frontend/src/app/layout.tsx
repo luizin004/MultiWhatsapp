@@ -1,22 +1,22 @@
-import type { Metadata } from "next";
-import { Space_Grotesk, Space_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-});
-
-const spaceMono = Space_Mono({
-  variable: "--font-space-mono",
-  subsets: ["latin"],
-  weight: ["400", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Vigia - Central de WhatsApp",
-  description: "Centralize instancias e conversas em tempo real com a Uazapi.",
+  title: "Vigia — Central de WhatsApp",
+  description: "Centralize instâncias e conversas em tempo real com a Uazapi.",
+};
+
+export const viewport: Viewport = {
+  colorScheme: "dark",
+  themeColor: "#111B21",
 };
 
 export default function RootLayout({
@@ -25,10 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
-      <body
-        className={`${spaceGrotesk.variable} ${spaceMono.variable} antialiased`}
-      >
+    <html lang="pt-BR" className="dark">
+      <body className={`${inter.variable} antialiased`}>
         {children}
       </body>
     </html>

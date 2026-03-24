@@ -729,100 +729,98 @@ export default function Dashboard() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-[#0B141A] text-[#E9EDEF]">
-      <div className="relative flex h-screen w-full max-w-[1600px] flex-1 overflow-hidden px-2 py-4 md:px-6">
-        <div className="pointer-events-none absolute inset-0 opacity-[0.3]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,211,102,0.12),_transparent_55%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom,_rgba(7,94,84,0.25),_transparent_60%)]" />
-        </div>
+    <div className="flex h-screen w-full overflow-hidden bg-[#0B141A] text-[#E9EDEF]">
+      {/* Metrics link — floating top-right */}
+      <div className="absolute right-4 top-4 z-20">
+        <Link
+          href="/metrics"
+          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#202C33] px-3 py-1.5 text-[13px] font-medium text-[#aebac1] shadow-lg transition hover:bg-[#2A3942] hover:text-[#E9EDEF]"
+        >
+          <BarChart3 className="h-3.5 w-3.5 text-[#25D366]" />
+          Métricas
+        </Link>
+      </div>
 
-        <div className="absolute right-6 top-6 z-20 flex items-center gap-3">
-          <Link
-            href="/metrics"
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[#E9EDEF] shadow-lg shadow-black/20 transition hover:bg-white/10"
-          >
-            <BarChart3 className="h-4 w-4 text-[#25D366]" />
-            Painel de métricas
-          </Link>
-        </div>
+      {/* Main app shell — true full-screen WhatsApp layout */}
+      <div className="flex h-full w-full overflow-hidden">
+        <Sidebar
+          instances={instances}
+          selectedInstance={selectedInstance}
+          onSelectInstance={handleSelectInstance}
+          loading={loading}
+          onAddInstance={() => setIsModalOpen(true)}
+          onEditInstance={(instance) => setEditingInstance(instance)}
+        />
 
-        <div className="relative z-10 flex h-full w-full overflow-hidden rounded-3xl border border-white/5 bg-[#111B21] shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-          <Sidebar
-            instances={instances}
-            selectedInstance={selectedInstance}
-            onSelectInstance={handleSelectInstance}
-            loading={loading}
-            onAddInstance={() => setIsModalOpen(true)}
-            onEditInstance={(instance) => setEditingInstance(instance)}
-          />
+        <div className="flex min-h-0 flex-1 flex-col bg-[#0B141A]">
+          {selectedInstance ? (
+            <>
+              {/* Chat area — wraps the contact list + message pane + contact details panel */}
+              <div className="relative flex min-h-0 flex-1 overflow-hidden">
+                <ChatArea
+                  messages={messages}
+                  instance={selectedInstance}
+                  selectedContact={selectedContact}
+                  onSelectContact={handleSelectContact}
+                  onPreviewContact={prefetchContactMessages}
+                  instanceToken={selectedInstance.uazapi_instance_id}
+                  onReplyMessage={(msg) => setReplyTo(msg)}
+                  onEditMessage={(msg) => setEditingMessage(msg)}
+                  onDeleteMessage={handleDeleteMessage}
+                  onReactMessage={handleReactMessage}
+                  onOpenContactDetails={() => setShowContactDetails(true)}
+                  typingState={selectedContactTyping}
+                />
 
-          <div className="flex min-h-0 flex-1 flex-col bg-[#0B141A]">
-            {selectedInstance ? (
-              <>
-                {/* Chat area — wraps the contact list + message pane + contact details panel */}
-                <div className="relative flex min-h-0 flex-1 overflow-hidden">
-                  <ChatArea
-                    messages={messages}
-                    instance={selectedInstance}
-                    selectedContact={selectedContact}
-                    onSelectContact={handleSelectContact}
-                    onPreviewContact={prefetchContactMessages}
+                {/* Contact details panel — slides in over the chat area */}
+                {selectedContact && (
+                  <ContactDetailsPanel
+                    open={showContactDetails}
+                    contact={selectedContact}
                     instanceToken={selectedInstance.uazapi_instance_id}
-                    onReplyMessage={(msg) => setReplyTo(msg)}
-                    onEditMessage={(msg) => setEditingMessage(msg)}
-                    onDeleteMessage={handleDeleteMessage}
-                    onReactMessage={handleReactMessage}
-                    onOpenContactDetails={() => setShowContactDetails(true)}
-                    typingState={selectedContactTyping}
+                    onClose={() => setShowContactDetails(false)}
                   />
-
-                  {/* Contact details panel — slides in over the chat area */}
-                  {selectedContact && (
-                    <ContactDetailsPanel
-                      open={showContactDetails}
-                      contact={selectedContact}
-                      instanceToken={selectedInstance.uazapi_instance_id}
-                      onClose={() => setShowContactDetails(false)}
-                    />
-                  )}
-                </div>
-
-                <div className="border-t border-white/5 bg-[#111B21]">
-                  {sendFeedback && (
-                    <div
-                      className={`border-b border-white/5 px-4 py-2 text-sm ${
-                        sendFeedback.type === 'success'
-                          ? 'bg-[#233d2f] text-[#7dd2a5]'
-                          : 'bg-[#3a1f21] text-[#f7a8a2]'
-                      }`}
-                    >
-                      {sendFeedback.message}
-                    </div>
-                  )}
-                  <MessageInput
-                    onSendMessage={handleSendMessage}
-                    onSendAttachment={handleSendAttachment}
-                    disabled={!selectedContact}
-                    selectedInstanceId={selectedInstance?.id ?? null}
-                    selectedContactId={selectedContact?.id ?? null}
-                    replyTo={replyTo}
-                    editMessage={editingMessage}
-                    onCancelReply={() => setReplyTo(null)}
-                    onCancelEdit={() => setEditingMessage(null)}
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-1 items-center justify-center bg-[#0B141A] px-6">
-                <div className="rounded-2xl border border-white/5 bg-[#111B21] px-8 py-10 text-center shadow-2xl">
-                  <p className="text-lg font-semibold text-[#E9EDEF]">Central de conversas</p>
-                  <p className="mt-2 text-sm text-[#8696A0]">
-                    Selecione uma instancia na lateral para iniciar uma conversa.
-                  </p>
-                </div>
+                )}
               </div>
-            )}
-          </div>
+
+              <div className="flex-shrink-0 border-t border-white/[0.04]">
+                {sendFeedback && (
+                  <div
+                    className={`border-b border-white/[0.04] px-4 py-2 text-[13px] ${
+                      sendFeedback.type === 'success'
+                        ? 'bg-[#1a2c23] text-[#7dd2a5]'
+                        : 'bg-[#2c1a1b] text-[#f7a8a2]'
+                    }`}
+                  >
+                    {sendFeedback.message}
+                  </div>
+                )}
+                <MessageInput
+                  onSendMessage={handleSendMessage}
+                  onSendAttachment={handleSendAttachment}
+                  disabled={!selectedContact}
+                  selectedInstanceId={selectedInstance?.id ?? null}
+                  selectedContactId={selectedContact?.id ?? null}
+                  replyTo={replyTo}
+                  editMessage={editingMessage}
+                  onCancelReply={() => setReplyTo(null)}
+                  onCancelEdit={() => setEditingMessage(null)}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center bg-[#0B141A] px-6">
+              <div className="text-center">
+                <div className="flex h-24 w-24 mx-auto mb-6 items-center justify-center rounded-full border-4 border-[#202C33]">
+                  <BarChart3 className="h-10 w-10 text-[#25D366]/30" />
+                </div>
+                <p className="text-[17px] font-light text-[#E9EDEF]">Vigia WhatsApp</p>
+                <p className="mt-2 text-[14px] text-[#8696A0]">
+                  Selecione uma instância na lateral para ver as conversas.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

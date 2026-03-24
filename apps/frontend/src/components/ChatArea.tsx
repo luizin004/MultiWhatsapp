@@ -205,79 +205,97 @@ export default function ChatArea({
   return (
     <div className="flex flex-1 min-h-0 bg-[#0B141A] text-[#E9EDEF]">
       {/* Lista de contatos da instancia */}
-      <aside className="hidden w-[320px] flex-col border-r border-white/5 bg-[#111B21] lg:flex">
-        <div className="border-b border-white/10 px-4 py-3">
-          <p className="text-sm font-semibold">Contatos</p>
-          <p className="text-xs text-[#8696A0]">{instance.contacts?.length || 0} vinculados</p>
+      <aside className="hidden w-[320px] flex-shrink-0 flex-col border-r border-white/[0.04] bg-[#111B21] lg:flex">
+        <div className="flex items-center justify-between border-b border-white/[0.04] bg-[#202C33] px-4 py-3 flex-shrink-0">
+          <div>
+            <p className="text-[15px] font-semibold text-[#E9EDEF]">Contatos</p>
+            <p className="text-[12px] text-[#8696A0]">{instance.contacts?.length || 0} vinculados</p>
+          </div>
         </div>
-        <div className="border-b border-white/5 px-4 py-3">
-          <div className="flex items-center gap-3 rounded-full bg-[#202C33] px-3">
-            <Search className="h-4 w-4 text-[#8696A0]" />
+        <div className="border-b border-white/[0.04] bg-[#111B21] px-3 py-2 flex-shrink-0">
+          <div className="flex items-center gap-2 rounded-lg bg-[#202C33] px-3 py-1">
+            <Search className="h-4 w-4 flex-shrink-0 text-[#8696A0]" />
             <input
               value={contactSearch}
               onChange={(event: ChangeEvent<HTMLInputElement>) => setContactSearch(event.target.value)}
               placeholder="Pesquisar contato"
-              className="h-10 flex-1 bg-transparent text-sm text-[#E9EDEF] placeholder:text-[#8696A0] focus:outline-none"
+              className="h-9 flex-1 bg-transparent text-[14px] text-[#E9EDEF] placeholder:text-[#8696A0] focus:outline-none"
             />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
           {filteredContacts.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center px-6 text-center text-[#8696A0]">
-              <User className="mb-3 h-12 w-12 text-white/10" />
-              <p className="text-sm">Nenhum contato encontrado</p>
+            <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/5 mb-3">
+                <User className="h-6 w-6 text-white/20" />
+              </div>
+              <p className="text-[13px] text-[#8696A0]">Nenhum contato encontrado</p>
             </div>
           ) : (
-            <ul className="divide-y divide-white/5">
+            <ul>
               {filteredContacts.map((contact: Contact) => {
                 const unread = contact.unread_count || 0
                 const isArchived = contact.is_archived ?? false
                 const isMuted = (contact.is_muted ?? 0) !== 0
                 const isPinned = contact.is_pinned ?? false
+                const isSelected = selectedContact?.id === contact.id
+                const displayName = contact.name || formatPhoneNumber(contact.phone_number)
+                const initials = displayName
+                  .split(' ')
+                  .slice(0, 2)
+                  .map((w: string) => w[0])
+                  .join('')
+                  .toUpperCase()
                 return (
                   <li
                     key={contact.id}
                     onContextMenu={(e) => handleContextMenu(e, contact)}
+                    className="border-b border-white/[0.04]"
                   >
                     <button
                       onClick={() => onSelectContact(contact)}
                       onMouseEnter={() => onPreviewContact?.(contact)}
                       onFocus={() => onPreviewContact?.(contact)}
-                      className={`flex w-full gap-3 px-4 py-3 text-left transition-colors ${
+                      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 ${
                         isArchived ? 'opacity-50' : ''
                       } ${
-                        selectedContact?.id === contact.id ? 'bg-white/5' : 'hover:bg-white/5'
+                        isSelected ? 'bg-[#2A3942]' : 'hover:bg-white/[0.03]'
                       }`}
                     >
-                      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[#202C33] text-[#25D366]">
-                        <User className="h-5 w-5" />
+                      <div className="relative flex-shrink-0">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#2A3942] text-[#aebac1] text-sm font-semibold select-none">
+                          {initials || <User className="h-5 w-5" />}
+                        </div>
+                        {/* Online dot placeholder — shown when there's a typing state for this contact */}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-sm font-semibold">
-                            {contact.name || formatPhoneNumber(contact.phone_number)}
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="truncate text-[15px] font-normal text-[#E9EDEF] leading-tight">
+                            {displayName}
                           </p>
-                          <div className="flex flex-shrink-0 items-center gap-1">
+                          <div className="flex flex-shrink-0 items-center gap-1 leading-tight">
                             {isPinned && (
                               <Pin className="h-3 w-3 text-[#8696A0]" />
                             )}
                             {isMuted && (
                               <BellOff className="h-3 w-3 text-[#8696A0]" />
                             )}
-                            <span className="text-[11px] text-[#8696A0]">
+                            <span className={`text-[11px] ${unread > 0 ? 'text-[#25D366]' : 'text-[#8696A0]'}`}>
                               {formatTime(contact.updated_at)}
                             </span>
                           </div>
                         </div>
-                        <p className="truncate text-xs text-[#8696A0]">
-                          {contact.phone_number}
-                        </p>
+                        <div className="mt-0.5 flex items-center justify-between gap-2">
+                          <p className="truncate text-[13px] text-[#8696A0]">
+                            {contact.phone_number}
+                          </p>
+                          {unread > 0 ? (
+                            <span className="flex-shrink-0 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#25D366] px-1.5 text-[11px] font-semibold text-[#111B21]">
+                              {unread > 99 ? '99+' : unread}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
-                      {unread ? (
-                        <span className="self-start rounded-full bg-[#25D366] px-2 py-0.5 text-[11px] font-semibold text-[#111B21]">
-                          {unread > 99 ? '99+' : unread}
-                        </span>
-                      ) : null}
                     </button>
                   </li>
                 )
@@ -290,42 +308,56 @@ export default function ChatArea({
       {/* Area do chat */}
       <div className="relative flex min-h-0 flex-1 flex-col">
         {/* Header do chat */}
-        <div className="flex items-center justify-between border-b border-white/5 bg-[#202C33] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-white/[0.04] bg-[#202C33] px-4 py-2 flex-shrink-0">
           {selectedContact ? (
             <button
               type="button"
               onClick={onOpenContactDetails}
-              className="flex items-center gap-3 rounded-lg px-1 py-0.5 transition hover:bg-white/5 focus:outline-none"
+              className="flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-white/5 focus:outline-none"
               title="Ver info do contato"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366]/10 text-[#25D366]">
-                <User className="h-4 w-4" />
-              </div>
+              {(() => {
+                const displayName = selectedContact.name || formatPhoneNumber(selectedContact.phone_number)
+                const initials = displayName
+                  .split(' ')
+                  .slice(0, 2)
+                  .map((w: string) => w[0])
+                  .join('')
+                  .toUpperCase()
+                return (
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#2A3942] text-[#aebac1] text-sm font-semibold select-none">
+                    {initials || <User className="h-4 w-4" />}
+                  </div>
+                )
+              })()}
               <div className="text-left">
-                <p className="text-sm font-semibold text-[#E9EDEF]">
+                <p className="text-[15px] font-normal text-[#E9EDEF] leading-tight">
                   {selectedContact.name || formatPhoneNumber(selectedContact.phone_number)}
                 </p>
                 {typingState && typingState !== 'paused' ? (
-                  <p className="text-xs text-[#25D366]">
+                  <p className="text-[13px] text-[#25D366] flex items-center gap-1">
+                    <span className="typing-dots">
+                      <span /><span /><span />
+                    </span>
                     {typingState === 'composing' ? 'Digitando...' : 'Gravando áudio...'}
                   </p>
                 ) : (
-                  <p className="text-xs text-[#8696A0]">{selectedContact.phone_number}</p>
+                  <p className="text-[13px] text-[#8696A0]">{selectedContact.phone_number}</p>
                 )}
               </div>
             </button>
           ) : (
-            <div>
-              <p className="text-sm font-semibold">Selecione um contato</p>
-              <p className="text-xs text-[#8696A0]">Instância: {instance.name}</p>
+            <div className="px-2 py-1.5">
+              <p className="text-[15px] font-normal text-[#E9EDEF]">Selecione um contato</p>
+              <p className="text-[13px] text-[#8696A0]">Instância: {instance.name}</p>
             </div>
           )}
-          <div className="flex items-center gap-2 text-white/60">
-            <button className="rounded-full p-2 hover:bg-white/10 hover:text-white" title="Pesquisar na conversa">
-              <Search className="h-4 w-4" />
+          <div className="flex items-center gap-1 text-[#aebac1]">
+            <button className="rounded-full p-2 transition hover:bg-white/10 hover:text-[#E9EDEF]" title="Pesquisar na conversa">
+              <Search className="h-5 w-5" />
             </button>
-            <button className="rounded-full p-2 hover:bg-white/10 hover:text-white" title="Mais opções">
-              <MoreVertical className="h-4 w-4" />
+            <button className="rounded-full p-2 transition hover:bg-white/10 hover:text-[#E9EDEF]" title="Mais opções">
+              <MoreVertical className="h-5 w-5" />
             </button>
           </div>
         </div>
@@ -342,51 +374,62 @@ export default function ChatArea({
         )}
 
         {/* Area de mensagens */}
-        <div className="relative flex-1 overflow-hidden bg-[#0B141A]">
-          <div className="pointer-events-none absolute inset-0 opacity-[0.15]" style={{ backgroundImage: 'radial-gradient(circle at 25% 25%, rgba(255,255,255,0.2) 1px, transparent 0)', backgroundSize: '180px 180px' }} />
+        <div className="relative flex-1 overflow-hidden">
+          {/* WhatsApp-style chat wallpaper */}
+          <div className="chat-wallpaper absolute inset-0" />
 
-          <div ref={messagesContainerRef} className="relative z-10 flex h-full flex-col overflow-y-auto px-6 py-6">
+          <div ref={messagesContainerRef} className="relative z-10 flex h-full flex-col overflow-y-auto px-4 py-4 scrollbar-thin">
             {!selectedContact ? (
-              <div className="flex flex-1 items-center justify-center text-center text-[#8696A0]">
-                <div>
-                  <User className="mx-auto mb-4 h-12 w-12 text-white/10" />
-                  <p className="text-sm">Escolha um contato para iniciar a conversa</p>
+              <div className="flex flex-1 items-center justify-center text-center">
+                <div className="rounded-xl border border-white/5 bg-[#111B21]/80 px-10 py-8 shadow-lg">
+                  <div className="flex h-16 w-16 mx-auto mb-4 items-center justify-center rounded-full bg-[#202C33]">
+                    <User className="h-7 w-7 text-white/20" />
+                  </div>
+                  <p className="text-[15px] text-[#8696A0]">Escolha um contato para iniciar a conversa</p>
                 </div>
               </div>
             ) : messages.length === 0 ? (
-              <div className="flex flex-1 items-center justify-center text-center text-[#8696A0]">
-                <div>
-                  <User className="mx-auto mb-4 h-12 w-12 text-white/10" />
-                  <p className="text-sm">Nenhuma mensagem ainda. Envie a primeira!</p>
+              <div className="flex flex-1 items-center justify-center text-center">
+                <div className="rounded-xl border border-white/5 bg-[#111B21]/80 px-10 py-8 shadow-lg">
+                  <div className="flex h-16 w-16 mx-auto mb-4 items-center justify-center rounded-full bg-[#202C33]">
+                    <User className="h-7 w-7 text-white/20" />
+                  </div>
+                  <p className="text-[15px] text-[#8696A0]">Nenhuma mensagem ainda. Envie a primeira!</p>
                 </div>
               </div>
             ) : (
               groupedEntries.map(([dateString, dateMessages]: [string, Message[]]) => (
-                <div key={dateString} className="space-y-4">
+                <div key={dateString} className="space-y-1">
                   {/* Separador de data */}
-                  <div className="flex items-center justify-center">
-                    <span className="rounded-full bg-white/10 px-4 py-1 text-xs text-[#E9EDEF]">
+                  <div className="flex items-center justify-center py-3">
+                    <span className="rounded-lg bg-[#182229]/90 px-3 py-1 text-[12px] text-[#8696A0] shadow-sm">
                       {formatDate(dateMessages[0].created_at)}
                     </span>
                   </div>
 
                   {/* Mensagens do dia */}
-                  <div className="space-y-2">
-                    {dateMessages.map((message: Message) => {
+                  <div className="space-y-[2px]">
+                    {dateMessages.map((message: Message, idx: number) => {
                       const isOutbound = message.direction === 'outbound'
                       const isHovered = hoveredMessageId === message.id
                       const quotedMessage = message.reply_to_id ? messageById.get(message.reply_to_id) : null
 
+                      // Grouping: detect first message in a sequence from the same sender
+                      const prevMessage = idx > 0 ? dateMessages[idx - 1] : null
+                      const isFirstInGroup = !prevMessage || prevMessage.direction !== message.direction
+                      const nextMessage = idx < dateMessages.length - 1 ? dateMessages[idx + 1] : null
+                      const isLastInGroup = !nextMessage || nextMessage.direction !== message.direction
+
                       return (
                         <div
                           key={message.id}
-                          className={`group flex items-end gap-2 ${isOutbound ? 'justify-end' : 'justify-start'}`}
+                          className={`group flex items-end gap-1 ${isOutbound ? 'justify-end' : 'justify-start'} ${isFirstInGroup ? 'mt-2' : ''}`}
                           onMouseEnter={() => setHoveredMessageId(message.id)}
                           onMouseLeave={() => setHoveredMessageId(null)}
                         >
                           {/* Actions toolbar for inbound messages (left side) */}
                           {!isOutbound && hasActionHandlers && (
-                            <div className={`transition-opacity duration-150 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+                            <div className={`flex-shrink-0 transition-opacity duration-150 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
                               <MessageActions
                                 message={message}
                                 instanceToken={instanceToken}
@@ -400,41 +443,50 @@ export default function ChatArea({
                           )}
 
                           {/* Bubble + quoted + reactions */}
-                          <div className={`flex max-w-[65%] flex-col gap-1 ${isOutbound ? 'items-end' : 'items-start'}`}>
+                          <div className={`flex max-w-[65%] flex-col gap-0.5 ${isOutbound ? 'items-end' : 'items-start'}`}>
                             {/* Quoted message preview */}
                             {quotedMessage && (
-                              <div className={`w-full rounded-lg bg-white/5 px-3 py-2 text-xs ${isOutbound ? 'border-r-4 border-[#25D366]' : 'border-l-4 border-[#8696A0]'}`}>
-                                <p className={`mb-0.5 font-semibold ${isOutbound ? 'text-[#25D366]' : 'text-[#8696A0]'}`}>
-                                  {quotedMessage.direction === 'outbound' ? 'Você' : selectedContact.name || selectedContact.phone_number}
-                                </p>
-                                <p className="truncate text-[#E9EDEF]/70">{quotedMessage.content || '...'}</p>
+                              <div className={`w-full rounded-t-lg overflow-hidden text-xs ${isOutbound ? 'bg-[#025144]' : 'bg-[#182229]'}`}>
+                                <div className={`border-l-4 px-3 py-2 ${isOutbound ? 'border-[#25D366]' : 'border-[#06cf9c]'}`}>
+                                  <p className={`font-semibold mb-0.5 text-[12px] ${isOutbound ? 'text-[#25D366]' : 'text-[#06cf9c]'}`}>
+                                    {quotedMessage.direction === 'outbound' ? 'Você' : selectedContact.name || selectedContact.phone_number}
+                                  </p>
+                                  <p className="truncate text-[#E9EDEF]/70">{quotedMessage.content || '...'}</p>
+                                </div>
                               </div>
                             )}
 
                             {/* Message bubble */}
                             <div
-                              className={`relative rounded-2xl px-4 py-2 text-sm leading-relaxed ${
-                                isOutbound ? 'bg-[#005C4B] text-[#E9EDEF] rounded-br-sm' : 'bg-[#202C33] text-[#E9EDEF] rounded-bl-sm'
-                              }`}
+                              className={`relative px-3 py-[6px] text-[14.2px] leading-[19px] shadow-sm ${
+                                isOutbound
+                                  ? `bg-[#005C4B] text-[#E9EDEF] ${
+                                      isFirstInGroup ? 'bubble-tail-out rounded-tl-lg rounded-tr-lg rounded-bl-lg rounded-br-sm' : 'rounded-lg'
+                                    }`
+                                  : `bg-[#202C33] text-[#E9EDEF] ${
+                                      isFirstInGroup ? 'bubble-tail-in rounded-tl-sm rounded-tr-lg rounded-bl-lg rounded-br-lg' : 'rounded-lg'
+                                    }`
+                              } ${quotedMessage ? '!rounded-t-none' : ''}`}
                             >
                               <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                              <div className="mt-1 flex items-center justify-end gap-1 text-[11px] text-white/70">
-                                <span>{formatTime(message.created_at)}</span>
+                              <div className="mt-[2px] flex items-center justify-end gap-1 float-right ml-3 -mb-0.5">
+                                <span className="text-[11px] text-white/50 whitespace-nowrap">{formatTime(message.created_at)}</span>
                                 {isOutbound && renderStatusIcon(message.status)}
                               </div>
+                              <div className="clear-both" />
                             </div>
 
                             {/* Reaction badges */}
                             {message.reactions && message.reactions.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
+                              <div className="flex flex-wrap gap-1 -mt-1">
                                 {aggregateReactions(message.reactions).map(({ emoji, count }) => (
                                   <span
                                     key={emoji}
-                                    className="flex items-center gap-0.5 rounded-full bg-[#202C33] px-2 py-0.5 text-xs"
+                                    className="flex items-center gap-0.5 rounded-full bg-[#182229] border border-white/10 px-2 py-0.5 text-[12px] shadow-sm"
                                     title={`${count} reação`}
                                   >
                                     {emoji}
-                                    {count > 1 && <span className="text-[#8696A0]">{count}</span>}
+                                    {count > 1 && <span className="text-[11px] text-[#8696A0] ml-0.5">{count}</span>}
                                   </span>
                                 ))}
                               </div>
@@ -443,7 +495,7 @@ export default function ChatArea({
 
                           {/* Actions toolbar for outbound messages (right side) */}
                           {isOutbound && hasActionHandlers && (
-                            <div className={`transition-opacity duration-150 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+                            <div className={`flex-shrink-0 transition-opacity duration-150 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
                               <MessageActions
                                 message={message}
                                 instanceToken={instanceToken}

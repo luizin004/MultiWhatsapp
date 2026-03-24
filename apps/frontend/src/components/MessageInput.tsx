@@ -176,7 +176,7 @@ export default function MessageInput({
   const canSend = message.trim() && !isSubmitting && !disabled && !hasPendingAttachment
 
   return (
-    <div className="border-t border-white/5 bg-[#111B21]">
+    <div className="bg-[#202C33]">
       {/* Reply preview bar */}
       {replyTo && !editMessage && (
         <ReplyPreview message={replyTo} onCancel={() => onCancelReply?.()} />
@@ -184,10 +184,10 @@ export default function MessageInput({
 
       {/* Edit mode indicator */}
       {editMessage && (
-        <div className="flex items-center gap-3 border-b border-white/5 bg-[#1A2730] px-4 py-2">
-          <div className="flex-1 border-l-4 border-[#25D366] pl-3">
-            <p className="text-xs font-semibold text-[#25D366]">Editando mensagem</p>
-            <p className="mt-0.5 truncate text-xs text-[#8696A0]">{editMessage.content}</p>
+        <div className="flex items-center gap-3 border-b border-white/[0.04] bg-[#182229] px-4 py-2">
+          <div className="flex-1 border-l-[3px] border-[#25D366] pl-3">
+            <p className="text-[12px] font-semibold text-[#25D366]">Editando mensagem</p>
+            <p className="mt-0.5 truncate text-[12px] text-[#8696A0]">{editMessage.content}</p>
           </div>
           <button
             type="button"
@@ -203,37 +203,36 @@ export default function MessageInput({
         </div>
       )}
 
-      <div className="px-4 py-3">
+      <div className="px-4 py-2">
         {pendingFile && (
-          <div className="mb-3 rounded-2xl border border-white/5 bg-[#0B141A] p-4 text-sm text-[#E9EDEF]">
-            <div className="flex gap-4">
+          <div className="mb-3 rounded-xl border border-white/[0.06] bg-[#111B21] p-3 text-sm text-[#E9EDEF]">
+            <div className="flex gap-3">
               {previewUrl && pendingFile.type.startsWith('image/') && (
-                <img src={previewUrl} alt={pendingFile.name} className="h-20 w-20 rounded-xl object-cover" />
+                <img src={previewUrl} alt={pendingFile.name} className="h-16 w-16 flex-shrink-0 rounded-lg object-cover" />
               )}
               {previewUrl && pendingFile.type.startsWith('video/') && (
-                <video src={previewUrl} className="h-20 w-20 rounded-xl" controls muted />
+                <video src={previewUrl} className="h-16 w-16 flex-shrink-0 rounded-lg" controls muted />
               )}
               {!pendingFile.type.startsWith('image/') && !pendingFile.type.startsWith('video/') && (
-                <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-white/5 text-white/70">
-                  <FileText className="h-8 w-8" />
+                <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-white/5 text-[#8696A0]">
+                  <FileText className="h-7 w-7" />
                 </div>
               )}
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-[#E9EDEF]">{pendingFile.name}</p>
-                <p className="text-xs text-[#8696A0]">
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-[13px] font-semibold text-[#E9EDEF]">{pendingFile.name}</p>
+                <p className="text-[12px] text-[#8696A0]">
                   {(pendingFile.size / 1024 / 1024).toFixed(2)} MB · {pendingFile.type || 'arquivo'}
                 </p>
-                <p className="mt-2 text-xs text-[#8696A0]">Use o campo abaixo para escrever uma legenda antes do envio.</p>
               </div>
             </div>
-            <div className="mt-3 flex gap-3">
+            <div className="mt-3 flex gap-2">
               <button
                 type="button"
                 onClick={() => {
                   resetAttachment()
                   setMessage('')
                 }}
-                className="flex-1 rounded-full border border-white/10 px-4 py-2 text-sm text-[#8696A0] transition hover:bg-white/5"
+                className="flex-1 rounded-full border border-white/10 px-4 py-1.5 text-[13px] text-[#8696A0] transition hover:bg-white/5"
                 disabled={isUploading}
               >
                 Cancelar
@@ -241,7 +240,7 @@ export default function MessageInput({
               <button
                 type="button"
                 onClick={handleConfirmAttachment}
-                className="flex-1 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-[#111B21] transition hover:bg-[#1ed061] disabled:opacity-60"
+                className="flex-1 rounded-full bg-[#25D366] px-4 py-1.5 text-[13px] font-semibold text-[#111B21] transition hover:bg-[#1ed061] disabled:opacity-60"
                 disabled={isUploading}
               >
                 {isUploading ? 'Enviando...' : 'Enviar arquivo'}
@@ -250,66 +249,68 @@ export default function MessageInput({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex items-end gap-3">
+        <form onSubmit={handleSubmit} className="flex items-end gap-2">
           {!isEditMode && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5 pb-1">
               <button
                 type="button"
-                className="rounded-full p-2 text-white/60 transition hover:bg-white/10 hover:text-white"
+                className="rounded-full p-2 text-[#aebac1] transition hover:bg-white/10 hover:text-[#E9EDEF]"
                 title="Emoji"
               >
-                <Smile className="h-5 w-5" />
+                <Smile className="h-[22px] w-[22px]" />
               </button>
               <button
                 type="button"
                 onClick={handleFileSelect}
-                className="rounded-full p-2 text-white/60 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:text-white/20"
+                className="rounded-full p-2 text-[#aebac1] transition hover:bg-white/10 hover:text-[#E9EDEF] disabled:cursor-not-allowed disabled:text-white/20"
                 disabled={disabled || isSubmitting || isUploading || !onSendAttachment}
                 title="Anexar arquivo"
               >
-                <Paperclip className="h-5 w-5" />
+                <Paperclip className="h-[22px] w-[22px]" />
               </button>
             </div>
           )}
 
-          <div className="flex-1 rounded-full bg-[#202C33] px-4 py-2">
+          <div className="flex-1 rounded-lg bg-[#2A3942] px-4 py-[9px] min-h-[42px] flex items-end">
             <textarea
               ref={textareaRef}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={isEditMode ? 'Editar mensagem...' : 'Digite uma mensagem'}
-              className="max-h-32 w-full resize-none bg-transparent text-sm text-[#E9EDEF] placeholder:text-[#8696A0] focus:outline-none"
+              className="max-h-32 w-full resize-none bg-transparent text-[15px] leading-[20px] text-[#E9EDEF] placeholder:text-[#8696A0] focus:outline-none"
               rows={1}
               disabled={isSubmitting || disabled}
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={!canSend}
-            className={`rounded-full p-3 text-white transition ${
-              canSend
-                ? 'bg-[#25D366] hover:bg-[#1ed061]'
-                : 'bg-white/10 text-white/40 cursor-not-allowed'
-            }`}
-            title={isEditMode ? 'Salvar edição' : isUploading ? 'Enviando anexo...' : 'Enviar mensagem'}
-          >
-            {isEditMode ? <Check className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-          </button>
+          <div className="pb-1">
+            <button
+              type="submit"
+              disabled={isEditMode ? !message.trim() : !canSend}
+              className={`flex h-[42px] w-[42px] items-center justify-center rounded-full text-white transition-all duration-150 ${
+                (isEditMode ? message.trim() : canSend)
+                  ? 'bg-[#25D366] hover:bg-[#1ed061] scale-100'
+                  : 'bg-[#2A3942] text-[#aebac1] cursor-not-allowed'
+              }`}
+              title={isEditMode ? 'Salvar edição' : isUploading ? 'Enviando anexo...' : 'Enviar mensagem'}
+            >
+              {isEditMode ? <Check className="h-5 w-5" /> : <Send className="h-5 w-5" />}
+            </button>
+          </div>
         </form>
 
-        <div className="mt-2 text-center text-xs text-[#8696A0]">
+        <p className="pb-1 pt-0.5 text-center text-[11px] text-[#8696A0]/60">
           {disabled
-            ? 'Selecione um contato conectado para enviar mensagens.'
+            ? 'Selecione um contato para enviar mensagens.'
             : isEditMode
-              ? 'Enter salva · Esc cancela edição'
+              ? 'Enter salva · Esc cancela'
               : isUploading
                 ? 'Processando arquivo...'
                 : hasPendingAttachment
                   ? 'Revise o anexo antes de enviar.'
-                  : 'Enter envia · Shift + Enter cria nova linha'}
-        </div>
+                  : 'Enter envia · Shift+Enter nova linha'}
+        </p>
 
         <input
           ref={fileInputRef}
