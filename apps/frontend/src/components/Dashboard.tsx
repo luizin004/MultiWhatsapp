@@ -21,7 +21,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [sendFeedback, setSendFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
-  const [sseConnection, setSseConnection] = useState<UazapiSSE | null>(null)
   const [editingInstance, setEditingInstance] = useState<InstanceWithContacts | null>(null)
   const [latestConnectionResult, setLatestConnectionResult] = useState<ConnectionResultState | null>(null)
   const [showConnectionToast, setShowConnectionToast] = useState(false)
@@ -159,97 +158,109 @@ export default function Dashboard() {
     [updateMessageCache]
   )
 
-  // Configurar SSE para receber mensagens em tempo real
+  // Configurar SSE para TODAS as instancias conectadas (tempo real)
+  const sseConnectionsRef = useRef<UazapiSSE[]>([])
+
   useEffect(() => {
-    console.log('SSE useEffect - selectedInstance:', selectedInstance?.name)
-
-    if (!selectedInstance) {
-      console.log('SSE: Nenhuma instancia selecionada')
-      return
-    }
-
-    // Desconectar conexao anterior
-    if (sseConnection) {
-      console.log('SSE: Desconectando conexao anterior')
-      sseConnection.disconnect()
-    }
-
-    // Criar nova conexao SSE
     const uazapiUrl = process.env.NEXT_PUBLIC_UAZAPI_BASE_URL
-    console.log('SSE: URL da UAZAPI:', uazapiUrl)
+    if (!uazapiUrl) return
 
-    if (!uazapiUrl) {
-      console.error('URL da UAZAPI nao configurada')
-      return
-    }
+    // Desconectar todas as conexoes anteriores
+    sseConnectionsRef.current.forEach((sse) => sse.disconnect())
+    sseConnectionsRef.current = []
 
-    console.log('SSE: Criando conexao com token:', selectedInstance.uazapi_instance_id)
-    const sse = new UazapiSSE(selectedInstance.uazapi_instance_id, uazapiUrl)
+    const connectedInstances = instances.filter((inst) => inst.status === 'connected')
 
-    sse.connect(
-      async (event: UazapiEvent) => {
-        if (event.type === 'message' && event.data) {
-          const message = event.data
+    connectedInstances.forEach((inst) => {
+      const sse = new UazapiSSE(inst.uazapi_instance_id, uazapiUrl)
 
-          if (message.wasSentByApi) {
-            return
-          }
+      sse.connect(
+        async (event: UazapiEvent) => {
+          if (event.type !== 'message' || !event.data) return
+          const msg = event.data
+          if (msg.wasSentByApi) return
 
           const rawPhone =
-            message.from ||
-            message.chatid ||
-            message.sender_pn ||
-            (message.sender && message.sender.includes('@s.whatsapp.net') ? message.sender : '')
+            msg.chatid || msg.from || msg.sender_pn ||
+            (msg.sender && msg.sender.includes('@s.whatsapp.net') ? msg.sender : '')
 
-          if (!rawPhone) {
-            console.warn('SSE: Mensagem recebida sem telefone identificavel', message)
+          if (!rawPhone) return
+          const phoneNumber = rawPhone.replace('@s.whatsapp.net', '').replace('@lid', '')
+
+          const messageText = msg.text || msg.content
+          if (!messageText) return
+
+          // Buscar contato localmente no state (sem query ao banco)
+          const localContact = inst.contacts?.find((c) => c.phone_number === phoneNumber)
+
+          if (!localContact) {
+            // Contato novo - recarregar instancias para pegar o contato criado pelo webhook
+            setTimeout(() => fetchInstances(), 1500)
             return
           }
 
-          const phoneNumber = rawPhone.replace('@s.whatsapp.net', '')
-
-          const messageText = message.text || message.content
-
-          if (!messageText) {
-            console.warn('SSE: Mensagem sem texto para acompanhar', message)
-            return
+          // Criar mensagem otimista instantanea
+          const optimisticMsg: Message = {
+            id: `sse-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            instance_id: inst.id,
+            contact_id: localContact.id,
+            content: messageText,
+            type: 'text',
+            direction: 'inbound',
+            status: 'delivered',
+            isOptimistic: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           }
 
-          // Apenas garantir que possuimos o contato localmente
-          const { data: contact } = await supabase
-            .from('contacts')
-            .select('*')
-            .eq('phone_number', phoneNumber)
-            .eq('instance_id', selectedInstance.id)
-            .single()
+          // Adicionar mensagem direto no cache - aparece na hora
+          updateMessageCache(localContact.id, (prev) => {
+            // Deduplicar por conteudo + timestamp proximo
+            const isDupe = prev.some(
+              (m) => m.content === messageText && m.direction === 'inbound' &&
+                Math.abs(new Date(m.created_at).getTime() - Date.now()) < 5000
+            )
+            if (isDupe) return prev
+            return [...prev, optimisticMsg]
+          })
 
-          if (!contact) {
-            // Contato ainda nao sincronizado localmente, recarregar instancias
-            fetchInstances()
-            return
+          // Atualizar unread_count localmente para contatos nao selecionados
+          const isViewingThisContact = selectedInstanceId === inst.id && selectedContactId === localContact.id
+          if (!isViewingThisContact) {
+            updateContactUnreadLocally(localContact.id, (localContact.unread_count || 0) + 1)
+          } else {
+            markContactAsRead(localContact.id)
           }
 
-          if (selectedContact && contact.id === selectedContact.id) {
-            fetchMessages(selectedInstance.id, contact.id)
-            markContactAsRead(contact.id)
-          }
+          // Mover contato pro topo atualizando updated_at local
+          setInstances((prev) =>
+            prev.map((instance) => {
+              if (instance.id !== inst.id) return instance
+              return {
+                ...instance,
+                contacts: instance.contacts?.map((c) =>
+                  c.id === localContact.id ? { ...c, updated_at: new Date().toISOString() } : c
+                ) || []
+              }
+            })
+          )
+        },
+        (error) => {
+          console.error(`SSE erro (${inst.name}):`, error)
         }
-      },
-      (error) => {
-        console.error('Erro na conexao SSE:', error)
-      }
-    )
+      )
 
-    setSseConnection(sse)
+      sseConnectionsRef.current.push(sse)
+    })
 
     return () => {
-      sse.disconnect()
+      sseConnectionsRef.current.forEach((sse) => sse.disconnect())
+      sseConnectionsRef.current = []
     }
-  }, [selectedInstance])
+  }, [instances.map((i) => i.id + i.status).join(',')])
 
-  // Configurar Realtime Subscriptions (para mensagens enviadas pelo dashboard)
+  // Configurar Realtime Subscriptions (confirma mensagens do webhook e sincroniza)
   useEffect(() => {
-    // Subscription para novas mensagens
     const messageSubscription = supabase
       .channel('messages')
       .on(
@@ -262,38 +273,48 @@ export default function Dashboard() {
         (payload) => {
           const newMessage = payload.new as Message
 
-          if (
-            selectedInstance &&
-            selectedContact &&
-            newMessage.instance_id === selectedInstance.id &&
-            newMessage.contact_id === selectedContact.id
-          ) {
-            updateMessageCache(newMessage.contact_id, (prev) => {
-              if (prev.find((msg) => msg.id === newMessage.id)) {
-                return prev
-              }
-              return [...prev, newMessage]
-            })
-          }
+          // Substituir mensagem otimista pela real do banco, ou adicionar se nao existia
+          updateMessageCache(newMessage.contact_id, (prev) => {
+            // Ja existe pelo id real?
+            if (prev.find((m) => m.id === newMessage.id)) return prev
 
-          fetchInstances()
+            // Tem uma otimista com mesmo conteudo/direcao? Substituir
+            const optimisticIndex = prev.findIndex(
+              (m) => m.isOptimistic && m.content === newMessage.content && m.direction === newMessage.direction
+            )
+            if (optimisticIndex !== -1) {
+              const next = [...prev]
+              next[optimisticIndex] = newMessage
+              return next
+            }
+
+            return [...prev, newMessage]
+          })
+
+          // Atualizar unread e posicao do contato
+          const isViewing = selectedInstanceId === newMessage.instance_id && selectedContactId === newMessage.contact_id
+          if (newMessage.direction === 'inbound' && !isViewing) {
+            setInstances((prev) =>
+              prev.map((instance) => ({
+                ...instance,
+                contacts: instance.contacts?.map((c) =>
+                  c.id === newMessage.contact_id
+                    ? { ...c, unread_count: (c.unread_count || 0) + 1, updated_at: new Date().toISOString() }
+                    : c
+                ) || []
+              }))
+            )
+          }
         }
       )
       .subscribe()
 
-    // Subscription para atualizacoes de contatos
     const contactSubscription = supabase
       .channel('contacts')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'contacts'
-        },
-        () => {
-          fetchInstances()
-        }
+        { event: '*', schema: 'public', table: 'contacts' },
+        () => { fetchInstances() }
       )
       .subscribe()
 
@@ -301,7 +322,7 @@ export default function Dashboard() {
       supabase.removeChannel(messageSubscription)
       supabase.removeChannel(contactSubscription)
     }
-  }, [selectedInstance, selectedContact, updateMessageCache, fetchMessages])
+  }, [selectedInstanceId, selectedContactId, updateMessageCache])
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -357,16 +378,32 @@ export default function Dashboard() {
       throw new Error('Selecione uma instancia e um contato para enviar mensagens.')
     }
 
+    // Mensagem otimista - aparece na hora
+    const optimisticMsg: Message = {
+      id: `opt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      instance_id: selectedInstance.id,
+      contact_id: selectedContact.id,
+      content,
+      type: 'text',
+      direction: 'outbound',
+      status: 'sent',
+      isOptimistic: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    updateMessageCache(selectedContact.id, (prev) => [...prev, optimisticMsg])
+
     try {
-      // Enviar via UAZAPI; o webhook registrará a mensagem no banco
       await sendTextMessage({
         token: selectedInstance.uazapi_instance_id,
         number: selectedContact.phone_number,
         text: content
       })
-
       await markContactAsRead(selectedContact.id)
     } catch (error) {
+      // Remover mensagem otimista em caso de erro
+      updateMessageCache(selectedContact.id, (prev) => prev.filter((m) => m.id !== optimisticMsg.id))
       const message = error instanceof Error ? error.message : 'Falha ao enviar mensagem via UAZAPI.'
       setSendFeedback({ type: 'error', message })
       throw error
