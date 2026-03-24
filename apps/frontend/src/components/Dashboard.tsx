@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { InstanceWithContacts, Message, Contact } from '@/types/database'
+import { InstanceWithContacts, Message, Contact, GroupInfo } from '@/types/database'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import MessageInput, { AttachmentPayload } from './MessageInput'
@@ -12,7 +12,14 @@ import { sendTextMessage, sendMediaMessage, deleteMessage, reactToMessage } from
 import { UazapiSSE, UazapiEvent } from '@/lib/uazapi-sse'
 import InstanceProfileModal from './InstanceProfileModal'
 import ContactDetailsPanel from './ContactDetailsPanel'
-import { BarChart3, Copy, X } from 'lucide-react'
+import GroupList from './groups/GroupList'
+import GroupDetails from './groups/GroupDetails'
+import CreateGroupModal from './groups/CreateGroupModal'
+import JoinGroupModal from './groups/JoinGroupModal'
+import QuickReplyManager from './QuickReplyManager'
+import LabelsManager from './LabelsManager'
+import WebhookManager from './WebhookManager'
+import { BarChart3, Copy, X, Settings, MessageSquare, Users } from 'lucide-react'
 
 // How long (ms) to keep a typing indicator visible before auto-clearing.
 const TYPING_TIMEOUT_MS = 30_000
@@ -37,6 +44,21 @@ export default function Dashboard() {
 
   // ── Contact details panel ─────────────────────────────────────────────────
   const [showContactDetails, setShowContactDetails] = useState(false)
+
+  // ── Sidebar tab: chats vs groups ──────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats')
+
+  // ── Groups state ──────────────────────────────────────────────────────────
+  const [selectedGroupJid, setSelectedGroupJid] = useState<string | null>(null)
+  const [showGroupDetails, setShowGroupDetails] = useState(false)
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [showJoinGroup, setShowJoinGroup] = useState(false)
+
+  // ── Settings / tools menu ─────────────────────────────────────────────────
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
+  const [showQuickReplies, setShowQuickReplies] = useState(false)
+  const [showLabels, setShowLabels] = useState(false)
+  const [showWebhooks, setShowWebhooks] = useState(false)
 
   // ── Typing/presence indicators keyed by contact phone number ─────────────
   const [typingContacts, setTypingContacts] = useState<Record<string, string>>({})
@@ -590,6 +612,12 @@ export default function Dashboard() {
     setShowContactDetails(false)
   }, [selectedContactId])
 
+  // Reset group selection when instance changes
+  useEffect(() => {
+    setSelectedGroupJid(null)
+    setShowGroupDetails(false)
+  }, [selectedInstanceId])
+
   const prefetchContactMessages = useCallback(
     (contact: Contact) => {
       if (!selectedInstance) return
@@ -743,70 +771,232 @@ export default function Dashboard() {
 
       {/* Main app shell — true full-screen WhatsApp layout */}
       <div className="flex h-full w-full overflow-hidden">
-        <Sidebar
-          instances={instances}
-          selectedInstance={selectedInstance}
-          onSelectInstance={handleSelectInstance}
-          loading={loading}
-          onAddInstance={() => setIsModalOpen(true)}
-          onEditInstance={(instance) => setEditingInstance(instance)}
-        />
+        <div className="flex w-[400px] flex-shrink-0 flex-col border-r border-white/[0.04]">
+          {/* Sidebar header with tab toggle and settings button */}
+          <div className="flex items-center bg-[#202C33] px-3 py-2 flex-shrink-0 gap-1">
+            <button
+              onClick={() => setActiveTab('chats')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
+                activeTab === 'chats'
+                  ? 'bg-[#2A3942] text-[#E9EDEF]'
+                  : 'text-[#8696A0] hover:bg-white/5 hover:text-[#E9EDEF]'
+              }`}
+              title="Conversas"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Conversas
+            </button>
+            <button
+              onClick={() => setActiveTab('groups')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
+                activeTab === 'groups'
+                  ? 'bg-[#2A3942] text-[#E9EDEF]'
+                  : 'text-[#8696A0] hover:bg-white/5 hover:text-[#E9EDEF]'
+              }`}
+              title="Grupos"
+            >
+              <Users className="h-4 w-4" />
+              Grupos
+            </button>
+            {/* Settings dropdown */}
+            <div className="relative ml-1">
+              <button
+                onClick={() => setSettingsMenuOpen((prev) => !prev)}
+                className="rounded-full p-2 text-[#aebac1] transition hover:bg-white/10 hover:text-[#E9EDEF]"
+                title="Configurações"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+              {settingsMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setSettingsMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-white/10 bg-[#202C33] py-1 shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => { setShowQuickReplies(true); setSettingsMenuOpen(false) }}
+                      disabled={!selectedInstance}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed"
+                    >
+                      Respostas rápidas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowLabels(true); setSettingsMenuOpen(false) }}
+                      disabled={!selectedInstance}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed"
+                    >
+                      Etiquetas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowWebhooks(true); setSettingsMenuOpen(false) }}
+                      disabled={!selectedInstance}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed"
+                    >
+                      Webhooks
+                    </button>
+                    <button
+                      type="button"
+                      disabled
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#8696A0]/50 cursor-not-allowed"
+                    >
+                      Privacidade
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Sidebar instance list (always visible) */}
+          <Sidebar
+            instances={instances}
+            selectedInstance={selectedInstance}
+            onSelectInstance={handleSelectInstance}
+            loading={loading}
+            onAddInstance={() => setIsModalOpen(true)}
+            onEditInstance={(instance) => setEditingInstance(instance)}
+          />
+        </div>
 
         <div className="flex min-h-0 flex-1 flex-col bg-[#0B141A]">
           {selectedInstance ? (
             <>
-              {/* Chat area — wraps the contact list + message pane + contact details panel */}
+              {/* Chat/groups area */}
               <div className="relative flex min-h-0 flex-1 overflow-hidden">
-                <ChatArea
-                  messages={messages}
-                  instance={selectedInstance}
-                  selectedContact={selectedContact}
-                  onSelectContact={handleSelectContact}
-                  onPreviewContact={prefetchContactMessages}
-                  instanceToken={selectedInstance.uazapi_instance_id}
-                  onReplyMessage={(msg) => setReplyTo(msg)}
-                  onEditMessage={(msg) => setEditingMessage(msg)}
-                  onDeleteMessage={handleDeleteMessage}
-                  onReactMessage={handleReactMessage}
-                  onOpenContactDetails={() => setShowContactDetails(true)}
-                  typingState={selectedContactTyping}
-                />
+                {activeTab === 'groups' ? (
+                  /* Groups tab: show group list + group details panel */
+                  <div className="flex flex-1 min-h-0">
+                    <div className="w-[320px] flex-shrink-0 border-r border-white/[0.04]">
+                      <div className="flex items-center justify-between border-b border-white/[0.04] bg-[#202C33] px-4 py-3">
+                        <p className="text-[15px] font-semibold text-[#E9EDEF]">Grupos</p>
+                        <button
+                          type="button"
+                          onClick={() => setShowJoinGroup(true)}
+                          className="rounded-full p-1.5 text-[#8696A0] transition hover:bg-white/10 hover:text-[#E9EDEF]"
+                          title="Entrar em grupo"
+                        >
+                          <Users className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div className="flex-1 overflow-hidden" style={{ height: 'calc(100% - 56px)' }}>
+                        <GroupList
+                          instanceToken={selectedInstance.uazapi_instance_id}
+                          onSelectGroup={(group: GroupInfo) => {
+                            setSelectedGroupJid(group.jid)
+                            setShowGroupDetails(true)
+                          }}
+                          selectedGroupJid={selectedGroupJid}
+                          onCreateGroup={() => setShowCreateGroup(true)}
+                        />
+                      </div>
+                    </div>
 
-                {/* Contact details panel — slides in over the chat area */}
-                {selectedContact && (
-                  <ContactDetailsPanel
-                    open={showContactDetails}
-                    contact={selectedContact}
-                    instanceToken={selectedInstance.uazapi_instance_id}
-                    onClose={() => setShowContactDetails(false)}
-                  />
-                )}
-              </div>
+                    {/* Empty state when no group is selected */}
+                    <div className="flex flex-1 items-center justify-center bg-[#0B141A]">
+                      <div className="text-center">
+                        <div className="flex h-20 w-20 mx-auto mb-4 items-center justify-center rounded-full border-2 border-[#202C33]">
+                          <Users className="h-8 w-8 text-[#25D366]/30" />
+                        </div>
+                        <p className="text-[15px] font-light text-[#8696A0]">
+                          Selecione um grupo para ver os detalhes
+                        </p>
+                      </div>
+                    </div>
 
-              <div className="flex-shrink-0 border-t border-white/[0.04]">
-                {sendFeedback && (
-                  <div
-                    className={`border-b border-white/[0.04] px-4 py-2 text-[13px] ${
-                      sendFeedback.type === 'success'
-                        ? 'bg-[#1a2c23] text-[#7dd2a5]'
-                        : 'bg-[#2c1a1b] text-[#f7a8a2]'
-                    }`}
-                  >
-                    {sendFeedback.message}
+                    {/* Group details slide-in panel */}
+                    {selectedGroupJid && (
+                      <GroupDetails
+                        open={showGroupDetails}
+                        groupJid={selectedGroupJid}
+                        instanceToken={selectedInstance.uazapi_instance_id}
+                        onClose={() => setShowGroupDetails(false)}
+                      />
+                    )}
+
+                    {/* Create group modal */}
+                    <CreateGroupModal
+                      open={showCreateGroup}
+                      instanceToken={selectedInstance.uazapi_instance_id}
+                      onClose={() => setShowCreateGroup(false)}
+                      onCreated={(group: GroupInfo) => {
+                        setShowCreateGroup(false)
+                        setSelectedGroupJid(group.jid)
+                        setShowGroupDetails(true)
+                      }}
+                    />
+
+                    {/* Join group modal */}
+                    <JoinGroupModal
+                      open={showJoinGroup}
+                      instanceToken={selectedInstance.uazapi_instance_id}
+                      onClose={() => setShowJoinGroup(false)}
+                      onJoined={() => setShowJoinGroup(false)}
+                    />
                   </div>
+                ) : (
+                  /* Chats tab: existing chat area */
+                  <>
+                    <ChatArea
+                      messages={messages}
+                      instance={selectedInstance}
+                      selectedContact={selectedContact}
+                      onSelectContact={handleSelectContact}
+                      onPreviewContact={prefetchContactMessages}
+                      instanceToken={selectedInstance.uazapi_instance_id}
+                      onReplyMessage={(msg) => setReplyTo(msg)}
+                      onEditMessage={(msg) => setEditingMessage(msg)}
+                      onDeleteMessage={handleDeleteMessage}
+                      onReactMessage={handleReactMessage}
+                      onOpenContactDetails={() => setShowContactDetails(true)}
+                      typingState={selectedContactTyping}
+                    />
+
+                    {/* Contact details panel — slides in over the chat area */}
+                    {selectedContact && (
+                      <ContactDetailsPanel
+                        open={showContactDetails}
+                        contact={selectedContact}
+                        instanceToken={selectedInstance.uazapi_instance_id}
+                        onClose={() => setShowContactDetails(false)}
+                      />
+                    )}
+                  </>
                 )}
-                <MessageInput
-                  onSendMessage={handleSendMessage}
-                  onSendAttachment={handleSendAttachment}
-                  disabled={!selectedContact}
-                  selectedInstanceId={selectedInstance?.id ?? null}
-                  selectedContactId={selectedContact?.id ?? null}
-                  replyTo={replyTo}
-                  editMessage={editingMessage}
-                  onCancelReply={() => setReplyTo(null)}
-                  onCancelEdit={() => setEditingMessage(null)}
-                />
               </div>
+
+              {/* Message input — only shown in chats tab */}
+              {activeTab === 'chats' && (
+                <div className="flex-shrink-0 border-t border-white/[0.04]">
+                  {sendFeedback && (
+                    <div
+                      className={`border-b border-white/[0.04] px-4 py-2 text-[13px] ${
+                        sendFeedback.type === 'success'
+                          ? 'bg-[#1a2c23] text-[#7dd2a5]'
+                          : 'bg-[#2c1a1b] text-[#f7a8a2]'
+                      }`}
+                    >
+                      {sendFeedback.message}
+                    </div>
+                  )}
+                  <MessageInput
+                    onSendMessage={handleSendMessage}
+                    onSendAttachment={handleSendAttachment}
+                    disabled={!selectedContact}
+                    selectedInstanceId={selectedInstance?.id ?? null}
+                    selectedContactId={selectedContact?.id ?? null}
+                    replyTo={replyTo}
+                    editMessage={editingMessage}
+                    onCancelReply={() => setReplyTo(null)}
+                    onCancelEdit={() => setEditingMessage(null)}
+                    instanceToken={selectedInstance?.uazapi_instance_id}
+                    contactNumber={selectedContact?.phone_number}
+                  />
+                </div>
+              )}
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center bg-[#0B141A] px-6">
@@ -823,6 +1013,27 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Tools / settings modals */}
+      {selectedInstance && (
+        <>
+          <QuickReplyManager
+            open={showQuickReplies}
+            instanceToken={selectedInstance.uazapi_instance_id}
+            onClose={() => setShowQuickReplies(false)}
+          />
+          <LabelsManager
+            open={showLabels}
+            instanceToken={selectedInstance.uazapi_instance_id}
+            onClose={() => setShowLabels(false)}
+          />
+          <WebhookManager
+            open={showWebhooks}
+            instanceToken={selectedInstance.uazapi_instance_id}
+            onClose={() => setShowWebhooks(false)}
+          />
+        </>
+      )}
 
       <AddInstanceModal
         open={isModalOpen}

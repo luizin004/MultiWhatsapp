@@ -1,9 +1,17 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { Send, Paperclip, Smile, FileText, Check } from 'lucide-react'
-import { Message } from '@/types/database'
+import { Message, QuickReply } from '@/types/database'
 import ReplyPreview from './ReplyPreview'
+import QuickReplySelector from './QuickReplySelector'
+import AttachmentMenu, { BuilderType } from './AttachmentMenu'
+import PollBuilder from './builders/PollBuilder'
+import ListBuilder from './builders/ListBuilder'
+import ButtonBuilder from './builders/ButtonBuilder'
+import ContactCardSender from './builders/ContactCardSender'
+import LocationSender from './builders/LocationSender'
+import PaymentSender from './builders/PaymentSender'
 
 export type AttachmentPayload = {
   url: string
@@ -24,6 +32,8 @@ interface MessageInputProps {
   editMessage?: Message | null
   onCancelReply?: () => void
   onCancelEdit?: () => void
+  instanceToken?: string
+  contactNumber?: string
 }
 
 export default function MessageInput({
@@ -36,7 +46,9 @@ export default function MessageInput({
   replyTo,
   editMessage,
   onCancelReply,
-  onCancelEdit
+  onCancelEdit,
+  instanceToken,
+  contactNumber,
 }: MessageInputProps) {
   const [message, setMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -44,8 +56,17 @@ export default function MessageInput({
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const hasPendingAttachment = Boolean(pendingFile)
+
+  // ── Quick reply selector state ────────────────────────────────────────────
+  const [quickReplyOpen, setQuickReplyOpen] = useState(false)
+  const [quickReplyQuery, setQuickReplyQuery] = useState('')
+
+  // ── Attachment menu + builder state ──────────────────────────────────────
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false)
+  const [activeBuilder, setActiveBuilder] = useState<BuilderType | null>(null)
 
   // When entering edit mode, populate the textarea with the existing text
   useEffect(() => {
@@ -64,6 +85,7 @@ export default function MessageInput({
     clearPreview()
     setPendingFile(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
+    if (imageInputRef.current) imageInputRef.current.value = ''
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -90,9 +112,58 @@ export default function MessageInput({
     }
   }
 
+  // Detect `/query` pattern at the start of the message or after a space.
+  // Keeps the popup open while the user types after the slash.
+  const detectQuickReplyTrigger = useCallback((value: string) => {
+    const match = value.match(/(^|\s)\/(\S*)$/)
+    if (match) {
+      setQuickReplyQuery(match[2])
+      setQuickReplyOpen(true)
+    } else {
+      setQuickReplyOpen(false)
+    }
+  }, [])
+
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value
+    setMessage(value)
+    detectQuickReplyTrigger(value)
+  }
+
+  const handleQuickReplySelect = useCallback(
+    (reply: QuickReply) => {
+      setQuickReplyOpen(false)
+
+      if (reply.type === 'text' && reply.text) {
+        // Replace the `/query` portion with the reply text
+        setMessage((prev) => prev.replace(/(^|\s)\/\S*$/, (m, space) => space + reply.text))
+      } else if (reply.file_url) {
+        // For media replies, clear the trigger and let the parent send it as an attachment
+        setMessage((prev) => prev.replace(/(^|\s)\/\S*$/, '').trim())
+        if (onSendAttachment) {
+          const type = (reply.type === 'image' ? 'image' : reply.type === 'video' ? 'video' : 'document') as AttachmentPayload['type']
+          const result = onSendAttachment({
+            url: reply.file_url!,
+            mimeType: '',
+            fileName: reply.doc_name ?? reply.shortcut,
+            type,
+          })
+          if (result instanceof Promise) {
+            result.catch((err) => console.error('Erro ao enviar resposta rapida de midia:', err))
+          }
+        }
+      }
+    },
+    [onSendAttachment]
+  )
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Escape cancels edit mode
+    // Escape closes quick reply popup first, then cancels edit/reply
     if (e.key === 'Escape') {
+      if (quickReplyOpen) {
+        setQuickReplyOpen(false)
+        return
+      }
       if (editMessage) {
         setMessage('')
         onCancelEdit?.()
@@ -102,9 +173,26 @@ export default function MessageInput({
       return
     }
 
+    // Backspace past the slash closes the popup
+    if (e.key === 'Backspace' && quickReplyOpen) {
+      const textarea = textareaRef.current
+      if (textarea) {
+        const cursor = textarea.selectionStart ?? 0
+        const before = message.slice(0, cursor)
+        // If the character being deleted is the slash trigger, close the popup
+        if (/\/$/.test(before)) {
+          setQuickReplyOpen(false)
+        }
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSubmit(e)
+      // Quick reply selector handles Enter via its own keydown listener (capture phase)
+      // so we only submit if the popup is closed
+      if (!quickReplyOpen) {
+        e.preventDefault()
+        handleSubmit(e)
+      }
     }
   }
 
@@ -115,11 +203,6 @@ export default function MessageInput({
     if (extension.endsWith('.mp4') || extension.endsWith('.mov') || extension.endsWith('.mkv')) return 'video'
     if (extension.endsWith('.png') || extension.endsWith('.jpg') || extension.endsWith('.jpeg') || extension.endsWith('.gif')) return 'image'
     return 'document'
-  }
-
-  const handleFileSelect = () => {
-    if (disabled || isSubmitting || isUploading) return
-    fileInputRef.current?.click()
   }
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -259,29 +342,54 @@ export default function MessageInput({
               >
                 <Smile className="h-[22px] w-[22px]" />
               </button>
-              <button
-                type="button"
-                onClick={handleFileSelect}
-                className="rounded-full p-2 text-[#aebac1] transition hover:bg-white/10 hover:text-[#E9EDEF] disabled:cursor-not-allowed disabled:text-white/20"
-                disabled={disabled || isSubmitting || isUploading || !onSendAttachment}
-                title="Anexar arquivo"
-              >
-                <Paperclip className="h-[22px] w-[22px]" />
-              </button>
+              {/* Attachment button wrapped in relative container to anchor the menu */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setAttachmentMenuOpen((prev) => !prev)}
+                  className="rounded-full p-2 text-[#aebac1] transition hover:bg-white/10 hover:text-[#E9EDEF] disabled:cursor-not-allowed disabled:text-white/20"
+                  disabled={disabled || isSubmitting || isUploading}
+                  title="Anexar arquivo"
+                >
+                  <Paperclip className="h-[22px] w-[22px]" />
+                </button>
+                <AttachmentMenu
+                  open={attachmentMenuOpen}
+                  onClose={() => setAttachmentMenuOpen(false)}
+                  onSelectFile={() => imageInputRef.current?.click()}
+                  onSelectDocument={() => fileInputRef.current?.click()}
+                  onOpenBuilder={(type) => {
+                    setActiveBuilder(type)
+                    setAttachmentMenuOpen(false)
+                  }}
+                />
+              </div>
             </div>
           )}
 
-          <div className="flex-1 rounded-lg bg-[#2A3942] px-4 py-[9px] min-h-[42px] flex items-end">
-            <textarea
-              ref={textareaRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={isEditMode ? 'Editar mensagem...' : 'Digite uma mensagem'}
-              className="max-h-32 w-full resize-none bg-transparent text-[15px] leading-[20px] text-[#E9EDEF] placeholder:text-[#8696A0] focus:outline-none"
-              rows={1}
-              disabled={isSubmitting || disabled}
-            />
+          {/* Textarea wrapper — also anchors the quick reply popup */}
+          <div className="relative flex-1">
+            {instanceToken && (
+              <QuickReplySelector
+                open={quickReplyOpen}
+                query={quickReplyQuery}
+                instanceToken={instanceToken}
+                onSelect={handleQuickReplySelect}
+                onClose={() => setQuickReplyOpen(false)}
+              />
+            )}
+            <div className="rounded-lg bg-[#2A3942] px-4 py-[9px] min-h-[42px] flex items-end">
+              <textarea
+                ref={textareaRef}
+                value={message}
+                onChange={handleMessageChange}
+                onKeyDown={handleKeyDown}
+                placeholder={isEditMode ? 'Editar mensagem...' : 'Digite uma mensagem'}
+                className="max-h-32 w-full resize-none bg-transparent text-[15px] leading-[20px] text-[#E9EDEF] placeholder:text-[#8696A0] focus:outline-none"
+                rows={1}
+                disabled={isSubmitting || disabled}
+              />
+            </div>
           </div>
 
           <div className="pb-1">
@@ -312,14 +420,65 @@ export default function MessageInput({
                   : 'Enter envia · Shift+Enter nova linha'}
         </p>
 
+        {/* Hidden input for images/videos (triggered via attachment menu) */}
+        <input
+          ref={imageInputRef}
+          type="file"
+          onChange={handleFileChange}
+          className="hidden"
+          accept="image/*,video/*"
+        />
+        {/* Hidden input for documents (triggered via attachment menu) */}
         <input
           ref={fileInputRef}
           type="file"
           onChange={handleFileChange}
           className="hidden"
-          accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
         />
       </div>
+
+      {/* Builder modals — rendered outside the form so z-index layering is correct */}
+      {instanceToken && contactNumber && (
+        <>
+          <PollBuilder
+            open={activeBuilder === 'poll'}
+            onClose={() => setActiveBuilder(null)}
+            instanceToken={instanceToken}
+            contactNumber={contactNumber}
+          />
+          <ListBuilder
+            open={activeBuilder === 'list'}
+            onClose={() => setActiveBuilder(null)}
+            instanceToken={instanceToken}
+            contactNumber={contactNumber}
+          />
+          <ButtonBuilder
+            open={activeBuilder === 'button'}
+            onClose={() => setActiveBuilder(null)}
+            instanceToken={instanceToken}
+            contactNumber={contactNumber}
+          />
+          <ContactCardSender
+            open={activeBuilder === 'contact'}
+            onClose={() => setActiveBuilder(null)}
+            instanceToken={instanceToken}
+            contactNumber={contactNumber}
+          />
+          <LocationSender
+            open={activeBuilder === 'location'}
+            onClose={() => setActiveBuilder(null)}
+            instanceToken={instanceToken}
+            contactNumber={contactNumber}
+          />
+          <PaymentSender
+            open={activeBuilder === 'payment'}
+            onClose={() => setActiveBuilder(null)}
+            instanceToken={instanceToken}
+            contactNumber={contactNumber}
+          />
+        </>
+      )}
     </div>
   )
 }
