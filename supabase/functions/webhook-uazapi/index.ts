@@ -293,15 +293,40 @@ serve(async (req) => {
 
       const externalId = resolveExternalMessageId(message)
 
-      const messageText =
+      // Extrair texto - para mídia sem texto, gerar descrição do tipo
+      const contentObj = typeof message.content === 'object' && message.content !== null
+        ? message.content as Record<string, unknown>
+        : null
+
+      const rawText =
         (typeof message.text === 'string' && message.text.trim() !== '' && message.text) ||
         (typeof message.content === 'string' && message.content.trim() !== '' && message.content) ||
+        (contentObj && typeof contentObj.text === 'string' && contentObj.text.trim() !== '' && contentObj.text) ||
         null
 
-      if (!messageText) {
-        console.log('Ignorando payload sem texto/conteúdo', message)
+      // Para mensagens de mídia sem texto, gerar conteúdo descritivo
+      const messageType = (message.messageType as string || message.type as string || '').toLowerCase()
+      const isMedia = ['image', 'video', 'audio', 'ptt', 'document', 'sticker', 'imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage']
+        .some(t => messageType.includes(t.toLowerCase()))
+
+      const mediaFileName = contentObj?.fileName || contentObj?.title || ''
+      const messageText = rawText || (isMedia ? `[${messageType.replace('message', '').toUpperCase() || 'MIDIA'}]${mediaFileName ? ' ' + mediaFileName : ''}` : null)
+
+      // Pular mensagens de grupo (chatid contém @g.us)
+      const chatId = typeof message.chatid === 'string' ? message.chatid : ''
+      const isGroupMsg = chatId.includes('@g.us') || (typeof message.isGroup === 'boolean' && message.isGroup)
+
+      if (!messageText && !isMedia) {
+        console.log('Ignorando payload sem conteudo identificavel', { messageType, chatId })
         continue
       }
+
+      if (isGroupMsg) {
+        console.log('Ignorando mensagem de grupo:', chatId)
+        continue
+      }
+
+      const finalContent = messageText || '[Mensagem]'
 
       console.log('Processando mensagem recebida via webhook:', message)
 
@@ -322,35 +347,43 @@ serve(async (req) => {
         return date.toISOString()
       })()
 
-      // Buscar ou criar contato
+      // Buscar ou criar contato - priorizar campos com @s.whatsapp.net (contém número real)
       const rawPhone = (() => {
-        const inboundFields = [
+        // Coletar todos os campos candidatos
+        const allFields = [
+          message.chatid,
           message.from,
-          message.chatid,
-          message.sender_pn,
-          typeof message.sender === 'string' && message.sender.includes('@s.whatsapp.net') ? message.sender : undefined
-        ]
-
-        const outboundFields = [
           message.to,
-          message.chatid,
+          message.sender_pn,
+          message.sender,
           (message as Record<string, unknown>).recipient,
           (message as Record<string, unknown>).remoteJid
-        ]
+        ].filter((f): f is string => typeof f === 'string' && f.trim() !== '')
 
-        const fields = fromMe ? outboundFields : inboundFields
-        for (const field of fields) {
-          if (typeof field === 'string' && field.trim() !== '') {
-            return field
-          }
-        }
-        return ''
+        // Prioridade 1: campo com @s.whatsapp.net (contém número de telefone real)
+        const whatsappField = allFields.find(f => f.includes('@s.whatsapp.net') && !f.includes('@g.us'))
+        if (whatsappField) return whatsappField
+
+        // Prioridade 2: campo numérico puro (sem @lid, sem @g.us)
+        const numericField = allFields.find(f => /^\d{10,15}$/.test(f.replace(/\D/g, '')) && !f.includes('@lid') && !f.includes('@g.us'))
+        if (numericField) return numericField
+
+        // Prioridade 3: qualquer campo que não seja grupo ou lid
+        const anyUsable = allFields.find(f => !f.includes('@g.us') && !f.includes('@lid'))
+        if (anyUsable) return anyUsable
+
+        // Último recurso: chatid (pode ser @lid, mas pelo menos temos algo)
+        return allFields[0] || ''
       })()
 
-      const phoneNumber = rawPhone?.replace('@s.whatsapp.net', '').replace('@lid', '')
+      const phoneNumber = rawPhone
+        .replace('@s.whatsapp.net', '')
+        .replace(/@lid$/, '')
+        .replace(/\D/g, '') // manter apenas dígitos
 
-      if (!phoneNumber) {
-        throw new Error('Número de telefone não encontrado na mensagem')
+      if (!phoneNumber || phoneNumber.length < 8) {
+        console.log('Numero de telefone invalido ou nao encontrado:', rawPhone, { chatId })
+        continue  // pular ao invés de crashar
       }
 
       // Resolver nome do contato: para inbound usa senderName, para outbound busca na UAZAPI
@@ -467,7 +500,7 @@ serve(async (req) => {
         .select('id')
         .eq('contact_id', contact.id)
         .eq('direction', direction)
-        .eq('content', messageText)
+        .eq('content', finalContent)
         .eq('created_at', messageCreatedAt)
         .maybeSingle()
 
@@ -487,8 +520,8 @@ serve(async (req) => {
           contact_id: contact.id,
           conversation_id: conversation?.id ?? null,
           external_id: externalId,
-          content: messageText,
-          type: (message.messageType as string) || (message.type as string) || 'text',
+          content: finalContent,
+          type: isMedia ? (messageType.replace('message', '').toLowerCase() || 'image') : ((message.messageType as string) || (message.type as string) || 'text'),
           direction,
           status: direction === 'outbound' ? 'sent' : 'delivered',
           created_at: messageCreatedAt
