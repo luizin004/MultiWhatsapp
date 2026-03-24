@@ -114,7 +114,8 @@ export default function Dashboard() {
           *,
           contacts:contacts(*)
         `)
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false })
+        .order('updated_at', { ascending: false, referencedTable: 'contacts' })
 
       if (error) throw error
       setInstances(data || [])

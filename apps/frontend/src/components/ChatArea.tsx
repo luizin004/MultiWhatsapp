@@ -53,7 +53,11 @@ export default function ChatArea({ messages, instance, selectedContact, onSelect
 
   const messageGroups = useMemo(() => groupMessagesByDate(messages), [messages])
   const contacts = useMemo(
-    () => [...(instance.contacts || [])].sort((a, b) => (b.unread_count || 0) - (a.unread_count || 0)),
+    () => [...(instance.contacts || [])].sort((a, b) => {
+      const dateA = new Date(a.updated_at).getTime()
+      const dateB = new Date(b.updated_at).getTime()
+      return dateB - dateA
+    }),
     [instance.contacts]
   )
 
