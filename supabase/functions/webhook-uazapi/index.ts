@@ -347,10 +347,43 @@ serve(async (req) => {
         return ''
       })()
 
-      const phoneNumber = rawPhone?.replace('@s.whatsapp.net', '')
+      const phoneNumber = rawPhone?.replace('@s.whatsapp.net', '').replace('@lid', '')
 
       if (!phoneNumber) {
         throw new Error('Número de telefone não encontrado na mensagem')
+      }
+
+      // Resolver nome do contato: para inbound usa senderName, para outbound busca na UAZAPI
+      const resolveContactName = async (): Promise<string> => {
+        // Para mensagens recebidas, senderName é o nome de quem mandou
+        if (!fromMe && typeof message.senderName === 'string' && message.senderName.trim()) {
+          return message.senderName as string
+        }
+
+        // Tentar buscar nome real via UAZAPI /chat/details
+        const uazapiBaseUrl = Deno.env.get('UAZAPI_BASE_URL') || 'https://oralaligner.uazapi.com'
+        try {
+          const detailsRes = await fetch(`${uazapiBaseUrl}/chat/details`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'token': instanceToken!
+            },
+            body: JSON.stringify({ number: phoneNumber })
+          })
+          if (detailsRes.ok) {
+            const details = await detailsRes.json()
+            const chatName = details?.wa_contactName || details?.wa_name || details?.name
+            if (typeof chatName === 'string' && chatName.trim()) {
+              return chatName
+            }
+          }
+        } catch (e) {
+          console.warn('[ContactName] Falha ao buscar /chat/details:', e)
+        }
+
+        return phoneNumber
       }
 
       let { data: contact, error: contactError } = await supabase
@@ -362,20 +395,38 @@ serve(async (req) => {
 
       if (contactError && contactError.code === 'PGRST116') {
         // Contato não existe, criar novo
+        const contactName = await resolveContactName()
         const { data: newContact, error: createError } = await supabase
           .from('contacts')
           .insert({
             instance_id: instance.id,
             phone_number: phoneNumber,
-            name: message.senderName || phoneNumber
+            name: contactName
           })
           .select()
           .single()
 
         if (createError) throw createError
         contact = newContact
+        console.log(`[ContactName] Novo contato criado: ${contactName} (${phoneNumber})`)
       } else if (contactError) {
         throw contactError
+      } else if (contact) {
+        // Contato existe - atualizar nome se estiver genérico (igual ao telefone ou vazio)
+        const currentName = (contact.name || '').trim()
+        const isGenericName = !currentName || currentName === phoneNumber || /^\d+$/.test(currentName)
+
+        if (isGenericName) {
+          const betterName = await resolveContactName()
+          if (betterName !== phoneNumber && betterName !== currentName) {
+            await supabase
+              .from('contacts')
+              .update({ name: betterName })
+              .eq('id', contact.id)
+            contact.name = betterName
+            console.log(`[ContactName] Nome atualizado: "${currentName}" -> "${betterName}" (${phoneNumber})`)
+          }
+        }
       }
 
       let conversation: ConversationRecord | null = null
