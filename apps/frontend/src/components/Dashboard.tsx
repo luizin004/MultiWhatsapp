@@ -8,10 +8,14 @@ import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import MessageInput, { AttachmentPayload } from './MessageInput'
 import AddInstanceModal, { ConnectionResultState } from './AddInstanceModal'
-import { sendTextMessage, sendMediaMessage } from '@/services/uazapi'
+import { sendTextMessage, sendMediaMessage, deleteMessage, reactToMessage } from '@/services/uazapi'
 import { UazapiSSE, UazapiEvent } from '@/lib/uazapi-sse'
 import InstanceProfileModal from './InstanceProfileModal'
+import ContactDetailsPanel from './ContactDetailsPanel'
 import { BarChart3, Copy, X } from 'lucide-react'
+
+// How long (ms) to keep a typing indicator visible before auto-clearing.
+const TYPING_TIMEOUT_MS = 30_000
 
 export default function Dashboard() {
   const [instances, setInstances] = useState<InstanceWithContacts[]>([])
@@ -26,6 +30,17 @@ export default function Dashboard() {
   const [showConnectionToast, setShowConnectionToast] = useState(false)
   const [copiedToastField, setCopiedToastField] = useState<string | null>(null)
   const messageCacheRef = useRef<Record<string, Message[]>>({})
+
+  // ── Message action state ──────────────────────────────────────────────────
+  const [replyTo, setReplyTo] = useState<Message | null>(null)
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null)
+
+  // ── Contact details panel ─────────────────────────────────────────────────
+  const [showContactDetails, setShowContactDetails] = useState(false)
+
+  // ── Typing/presence indicators keyed by contact phone number ─────────────
+  const [typingContacts, setTypingContacts] = useState<Record<string, string>>({})
+  const typingTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   const selectedInstance = useMemo(
     () => instances.find((instance) => instance.id === selectedInstanceId) || null,
@@ -61,6 +76,20 @@ export default function Dashboard() {
     [updateContactUnreadLocally]
   )
 
+  // ── Message cache (defined early so all handlers below can use it) ─────────
+
+  const updateMessageCache = useCallback(
+    (contactId: string, builder: (prev: Message[]) => Message[]) => {
+      const previous = messageCacheRef.current[contactId] || []
+      const next = builder(previous)
+      messageCacheRef.current[contactId] = next
+      if (selectedContactId === contactId) {
+        setMessages(next)
+      }
+    },
+    [selectedContactId]
+  )
+
   const handleSendAttachment = async ({ url, mimeType, fileName, type, caption }: AttachmentPayload) => {
     if (!selectedInstance || !selectedContact) {
       throw new Error('Selecione uma instancia e um contato para enviar anexos.')
@@ -74,7 +103,7 @@ export default function Dashboard() {
         file: url,
         text: caption,
         docName: type === 'document' ? fileName : undefined,
-        mimeType
+        mimetype: mimeType
       })
 
       const fallbackContent = caption || fileName || `[${type.toUpperCase()}]`
@@ -104,7 +133,100 @@ export default function Dashboard() {
     }
   }
 
-  // Buscar instancias com contatos
+  // ── Message action handlers ───────────────────────────────────────────────
+
+  const handleDeleteMessage = useCallback(
+    async (messageId: string) => {
+      if (!selectedInstance) return
+
+      // Optimistically mark as deleted in cache
+      const markDeleted = (prev: Message[]): Message[] =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, status: 'failed', content: '[Mensagem apagada]' } : m
+        )
+
+      if (selectedContact) {
+        updateMessageCache(selectedContact.id, markDeleted)
+      }
+
+      try {
+        await deleteMessage(selectedInstance.uazapi_instance_id, { id: messageId })
+      } catch (error) {
+        console.error('Erro ao apagar mensagem:', error)
+        setSendFeedback({ type: 'error', message: 'Falha ao apagar a mensagem.' })
+      }
+    },
+    [selectedInstance, selectedContact, updateMessageCache]
+  )
+
+  const handleReactMessage = useCallback(
+    async (messageId: string, emoji: string) => {
+      if (!selectedInstance || !selectedContact) return
+
+      try {
+        await reactToMessage(selectedInstance.uazapi_instance_id, {
+          number: selectedContact.phone_number,
+          text: emoji,
+          id: messageId
+        })
+
+        // Optimistically update reactions in cache
+        updateMessageCache(selectedContact.id, (prev) =>
+          prev.map((m) => {
+            if (m.id !== messageId) return m
+            const existing = m.reactions ?? []
+            const withoutSelf = existing.filter((r) => r.from !== 'me')
+            const reactions = emoji ? [...withoutSelf, { emoji, from: 'me' }] : withoutSelf
+            return { ...m, reactions }
+          })
+        )
+      } catch (error) {
+        console.error('Erro ao reagir à mensagem:', error)
+        setSendFeedback({ type: 'error', message: 'Falha ao reagir à mensagem.' })
+      }
+    },
+    [selectedInstance, selectedContact, updateMessageCache]
+  )
+
+  // ── Typing indicator helpers ──────────────────────────────────────────────
+
+  const setContactTyping = useCallback((phone: string, state: string) => {
+    setTypingContacts((prev) => ({ ...prev, [phone]: state }))
+
+    // Clear any existing timer for this contact
+    if (typingTimersRef.current[phone]) {
+      clearTimeout(typingTimersRef.current[phone])
+    }
+
+    if (state === 'paused') {
+      // Remove immediately on paused
+      setTypingContacts((prev) => {
+        const next = { ...prev }
+        delete next[phone]
+        return next
+      })
+      return
+    }
+
+    // Auto-clear after timeout
+    typingTimersRef.current[phone] = setTimeout(() => {
+      setTypingContacts((prev) => {
+        const next = { ...prev }
+        delete next[phone]
+        return next
+      })
+    }, TYPING_TIMEOUT_MS)
+  }, [])
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(typingTimersRef.current).forEach(clearTimeout)
+    }
+  }, [])
+
+  // ── Data fetching ─────────────────────────────────────────────────────────
+
   const fetchInstances = async () => {
     try {
       const { data, error } = await supabase
@@ -124,19 +246,6 @@ export default function Dashboard() {
       setLoading(false)
     }
   }
-
-  // Buscar mensagens do contato selecionado
-  const updateMessageCache = useCallback(
-    (contactId: string, builder: (prev: Message[]) => Message[]) => {
-      const previous = messageCacheRef.current[contactId] || []
-      const next = builder(previous)
-      messageCacheRef.current[contactId] = next
-      if (selectedContactId === contactId) {
-        setMessages(next)
-      }
-    },
-    [selectedContactId]
-  )
 
   const fetchMessages = useCallback(
     async (instanceId: string, contactId: string) => {
@@ -158,14 +267,14 @@ export default function Dashboard() {
     [updateMessageCache]
   )
 
-  // Configurar SSE para TODAS as instancias conectadas (tempo real)
+  // ── SSE handler ───────────────────────────────────────────────────────────
+
   const sseConnectionsRef = useRef<UazapiSSE[]>([])
 
   useEffect(() => {
     const uazapiUrl = process.env.NEXT_PUBLIC_UAZAPI_BASE_URL
     if (!uazapiUrl) return
 
-    // Desconectar todas as conexoes anteriores
     sseConnectionsRef.current.forEach((sse) => sse.disconnect())
     sseConnectionsRef.current = []
 
@@ -176,74 +285,186 @@ export default function Dashboard() {
 
       sse.connect(
         async (event: UazapiEvent) => {
-          if (event.type !== 'message' || !event.data) return
-          const msg = event.data
-          if (msg.wasSentByApi) return
+          // ── Inbound message ────────────────────────────────────────────────
+          if (event.type === 'message') {
+            if (!event.data) return
+            const msg = event.data
+            if (msg.wasSentByApi) return
 
-          const rawPhone =
-            msg.chatid || msg.from || msg.sender_pn ||
-            (msg.sender && msg.sender.includes('@s.whatsapp.net') ? msg.sender : '')
+            const rawPhone =
+              msg.chatid || msg.from || msg.sender_pn ||
+              (msg.sender && msg.sender.includes('@s.whatsapp.net') ? msg.sender : '')
 
-          if (!rawPhone) return
-          const phoneNumber = rawPhone.replace('@s.whatsapp.net', '').replace('@lid', '')
+            if (!rawPhone) return
+            const phoneNumber = rawPhone.replace('@s.whatsapp.net', '').replace('@lid', '')
 
-          const messageText = msg.text || msg.content
-          if (!messageText) return
+            const messageText = msg.text || msg.content
+            if (!messageText) return
 
-          // Buscar contato localmente no state (sem query ao banco)
-          const localContact = inst.contacts?.find((c) => c.phone_number === phoneNumber)
+            const localContact = inst.contacts?.find((c) => c.phone_number === phoneNumber)
 
-          if (!localContact) {
-            // Contato novo - recarregar instancias para pegar o contato criado pelo webhook
-            setTimeout(() => fetchInstances(), 1500)
+            if (!localContact) {
+              setTimeout(() => fetchInstances(), 1500)
+              return
+            }
+
+            const optimisticMsg: Message = {
+              id: `sse-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              instance_id: inst.id,
+              contact_id: localContact.id,
+              content: messageText,
+              type: 'text',
+              direction: 'inbound',
+              status: 'delivered',
+              isOptimistic: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+
+            updateMessageCache(localContact.id, (prev) => {
+              const isDupe = prev.some(
+                (m) =>
+                  m.content === messageText &&
+                  m.direction === 'inbound' &&
+                  Math.abs(new Date(m.created_at).getTime() - Date.now()) < 5000
+              )
+              if (isDupe) return prev
+              return [...prev, optimisticMsg]
+            })
+
+            const isViewingThisContact =
+              selectedInstanceId === inst.id && selectedContactId === localContact.id
+
+            if (!isViewingThisContact) {
+              updateContactUnreadLocally(localContact.id, (localContact.unread_count || 0) + 1)
+            } else {
+              markContactAsRead(localContact.id)
+            }
+
+            setInstances((prev) =>
+              prev.map((instance) => {
+                if (instance.id !== inst.id) return instance
+                return {
+                  ...instance,
+                  contacts: instance.contacts?.map((c) =>
+                    c.id === localContact.id
+                      ? { ...c, updated_at: new Date().toISOString() }
+                      : c
+                  ) || []
+                }
+              })
+            )
             return
           }
 
-          // Criar mensagem otimista instantanea
-          const optimisticMsg: Message = {
-            id: `sse-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            instance_id: inst.id,
-            contact_id: localContact.id,
-            content: messageText,
-            type: 'text',
-            direction: 'inbound',
-            status: 'delivered',
-            isOptimistic: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+          // ── Message status update / reaction / delete ──────────────────────
+          if (event.type === 'message_update') {
+            const update = event.data
+            if (!update) return
+
+            const externalId = update.id || update.messageid
+            if (!externalId) return
+
+            // Find which contact owns this message across all contacts in this instance
+            const allContactIds = inst.contacts?.map((c) => c.id) ?? []
+
+            for (const contactId of allContactIds) {
+              const cached = messageCacheRef.current[contactId] ?? []
+              const msgIndex = cached.findIndex(
+                (m) => m.id === externalId || m.external_id === externalId
+              )
+              if (msgIndex === -1) continue
+
+              updateMessageCache(contactId, (prev) =>
+                prev.map((m, idx) => {
+                  if (idx !== msgIndex) return m
+
+                  // Deletion
+                  if (update.status === 'deleted') {
+                    return { ...m, content: '[Mensagem apagada]', status: 'failed' as Message['status'] }
+                  }
+
+                  // Status update (sent → delivered → read)
+                  const statusMap: Record<string, Message['status']> = {
+                    sent: 'sent',
+                    delivered: 'delivered',
+                    read: 'read',
+                  }
+                  const newStatus = update.status ? (statusMap[update.status] ?? m.status) : m.status
+
+                  // Reaction
+                  let reactions = m.reactions ?? []
+                  if (update.reaction !== undefined) {
+                    const senderKey = update.sender_pn || update.from || 'unknown'
+                    reactions = reactions.filter((r) => r.from !== senderKey)
+                    if (update.reaction) {
+                      reactions = [...reactions, { emoji: update.reaction, from: senderKey }]
+                    }
+                  }
+
+                  // Edit
+                  const content =
+                    update.edited !== undefined && update.edited !== null
+                      ? update.edited
+                      : m.content
+
+                  return { ...m, status: newStatus, reactions, content }
+                })
+              )
+              break
+            }
+            return
           }
 
-          // Adicionar mensagem direto no cache - aparece na hora
-          updateMessageCache(localContact.id, (prev) => {
-            // Deduplicar por conteudo + timestamp proximo
-            const isDupe = prev.some(
-              (m) => m.content === messageText && m.direction === 'inbound' &&
-                Math.abs(new Date(m.created_at).getTime() - Date.now()) < 5000
+          // ── Presence (typing / recording) ─────────────────────────────────
+          if (event.type === 'presence') {
+            const presence = event.data
+            if (!presence) return
+
+            const rawPhone =
+              presence.chatid ||
+              presence.from ||
+              presence.sender_pn ||
+              (presence.sender?.includes('@s.whatsapp.net') ? presence.sender : '')
+
+            if (!rawPhone) return
+            const phone = rawPhone.replace('@s.whatsapp.net', '').replace('@lid', '')
+            const state = presence.presence ?? presence.state ?? ''
+
+            setContactTyping(phone, state)
+            return
+          }
+
+          // ── Connection state change ────────────────────────────────────────
+          if (event.type === 'connection') {
+            const conn = event.data
+            const newState = conn?.state
+            if (!newState) return
+
+            console.log(`SSE connection change for ${inst.name}:`, newState)
+
+            // Reflect the new status on the instance in local state
+            const mappedStatus =
+              newState === 'connected'
+                ? 'connected'
+                : newState === 'disconnected'
+                  ? 'disconnected'
+                  : inst.status
+
+            setInstances((prev) =>
+              prev.map((i) =>
+                i.id === inst.id ? { ...i, status: mappedStatus as InstanceWithContacts['status'] } : i
+              )
             )
-            if (isDupe) return prev
-            return [...prev, optimisticMsg]
-          })
-
-          // Atualizar unread_count localmente para contatos nao selecionados
-          const isViewingThisContact = selectedInstanceId === inst.id && selectedContactId === localContact.id
-          if (!isViewingThisContact) {
-            updateContactUnreadLocally(localContact.id, (localContact.unread_count || 0) + 1)
-          } else {
-            markContactAsRead(localContact.id)
+            return
           }
 
-          // Mover contato pro topo atualizando updated_at local
-          setInstances((prev) =>
-            prev.map((instance) => {
-              if (instance.id !== inst.id) return instance
-              return {
-                ...instance,
-                contacts: instance.contacts?.map((c) =>
-                  c.id === localContact.id ? { ...c, updated_at: new Date().toISOString() } : c
-                ) || []
-              }
-            })
-          )
+          // ── Labels ────────────────────────────────────────────────────────
+          if (event.type === 'labels') {
+            // Refresh instances to pick up label changes
+            fetchInstances()
+            return
+          }
         },
         (error) => {
           console.error(`SSE erro (${inst.name}):`, error)
@@ -257,9 +478,11 @@ export default function Dashboard() {
       sseConnectionsRef.current.forEach((sse) => sse.disconnect())
       sseConnectionsRef.current = []
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instances.map((i) => i.id + i.status).join(',')])
 
-  // Configurar Realtime Subscriptions (confirma mensagens do webhook e sincroniza)
+  // ── Realtime Supabase subscriptions ──────────────────────────────────────
+
   useEffect(() => {
     const messageSubscription = supabase
       .channel('messages')
@@ -273,14 +496,14 @@ export default function Dashboard() {
         (payload) => {
           const newMessage = payload.new as Message
 
-          // Substituir mensagem otimista pela real do banco, ou adicionar se nao existia
           updateMessageCache(newMessage.contact_id, (prev) => {
-            // Ja existe pelo id real?
             if (prev.find((m) => m.id === newMessage.id)) return prev
 
-            // Tem uma otimista com mesmo conteudo/direcao? Substituir
             const optimisticIndex = prev.findIndex(
-              (m) => m.isOptimistic && m.content === newMessage.content && m.direction === newMessage.direction
+              (m) =>
+                m.isOptimistic &&
+                m.content === newMessage.content &&
+                m.direction === newMessage.direction
             )
             if (optimisticIndex !== -1) {
               const next = [...prev]
@@ -291,15 +514,21 @@ export default function Dashboard() {
             return [...prev, newMessage]
           })
 
-          // Atualizar unread e posicao do contato
-          const isViewing = selectedInstanceId === newMessage.instance_id && selectedContactId === newMessage.contact_id
+          const isViewing =
+            selectedInstanceId === newMessage.instance_id &&
+            selectedContactId === newMessage.contact_id
+
           if (newMessage.direction === 'inbound' && !isViewing) {
             setInstances((prev) =>
               prev.map((instance) => ({
                 ...instance,
                 contacts: instance.contacts?.map((c) =>
                   c.id === newMessage.contact_id
-                    ? { ...c, unread_count: (c.unread_count || 0) + 1, updated_at: new Date().toISOString() }
+                    ? {
+                        ...c,
+                        unread_count: (c.unread_count || 0) + 1,
+                        updated_at: new Date().toISOString()
+                      }
                     : c
                 ) || []
               }))
@@ -324,12 +553,12 @@ export default function Dashboard() {
     }
   }, [selectedInstanceId, selectedContactId, updateMessageCache])
 
-  // Carregar dados iniciais
+  // ── Initial load ──────────────────────────────────────────────────────────
+
   useEffect(() => {
     fetchInstances()
   }, [])
 
-  // Garantir que contato selecionado exista na instancia
   useEffect(() => {
     if (!selectedInstance) {
       setSelectedContactId(null)
@@ -346,7 +575,6 @@ export default function Dashboard() {
     }
   }, [selectedInstance, selectedContactId])
 
-  // Carregar mensagens quando selecionar contato
   useEffect(() => {
     if (selectedInstance && selectedContact) {
       const cached = messageCacheRef.current[selectedContact.id]
@@ -357,6 +585,11 @@ export default function Dashboard() {
     }
   }, [selectedInstance, selectedContact, fetchMessages])
 
+  // Close contact details panel when contact changes
+  useEffect(() => {
+    setShowContactDetails(false)
+  }, [selectedContactId])
+
   const prefetchContactMessages = useCallback(
     (contact: Contact) => {
       if (!selectedInstance) return
@@ -366,19 +599,19 @@ export default function Dashboard() {
     [selectedInstance, fetchMessages]
   )
 
-  // Feedback de envio temporario
   useEffect(() => {
     if (!sendFeedback) return
     const timeout = setTimeout(() => setSendFeedback(null), 4000)
     return () => clearTimeout(timeout)
   }, [sendFeedback])
 
+  // ── Send handlers ─────────────────────────────────────────────────────────
+
   const handleSendMessage = async (content: string) => {
     if (!selectedInstance || !selectedContact) {
       throw new Error('Selecione uma instancia e um contato para enviar mensagens.')
     }
 
-    // Mensagem otimista - aparece na hora
     const optimisticMsg: Message = {
       id: `opt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       instance_id: selectedInstance.id,
@@ -402,13 +635,17 @@ export default function Dashboard() {
       })
       await markContactAsRead(selectedContact.id)
     } catch (error) {
-      // Remover mensagem otimista em caso de erro
-      updateMessageCache(selectedContact.id, (prev) => prev.filter((m) => m.id !== optimisticMsg.id))
-      const message = error instanceof Error ? error.message : 'Falha ao enviar mensagem via UAZAPI.'
+      updateMessageCache(selectedContact.id, (prev) =>
+        prev.filter((m) => m.id !== optimisticMsg.id)
+      )
+      const message =
+        error instanceof Error ? error.message : 'Falha ao enviar mensagem via UAZAPI.'
       setSendFeedback({ type: 'error', message })
       throw error
     }
   }
+
+  // ── Instance CRUD handlers ────────────────────────────────────────────────
 
   const handleInstanceCreated = (instance: InstanceWithContacts) => {
     setInstances((prev) => {
@@ -432,7 +669,9 @@ export default function Dashboard() {
   }
 
   const handleInstanceUpdated = (updatedInstance: InstanceWithContacts) => {
-    setInstances((prev) => prev.map((instance) => (instance.id === updatedInstance.id ? updatedInstance : instance)))
+    setInstances((prev) =>
+      prev.map((instance) => (instance.id === updatedInstance.id ? updatedInstance : instance))
+    )
     if (selectedInstanceId === updatedInstance.id) {
       setSelectedInstanceId(updatedInstance.id)
     }
@@ -481,6 +720,14 @@ export default function Dashboard() {
     setShowConnectionToast(false)
   }
 
+  // ── Typing indicator for selected contact ────────────────────────────────
+
+  const selectedContactTyping = selectedContact
+    ? typingContacts[selectedContact.phone_number] ?? null
+    : null
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-[#0B141A] text-[#E9EDEF]">
       <div className="relative flex h-screen w-full max-w-[1600px] flex-1 overflow-hidden px-2 py-4 md:px-6">
@@ -512,13 +759,34 @@ export default function Dashboard() {
           <div className="flex min-h-0 flex-1 flex-col bg-[#0B141A]">
             {selectedInstance ? (
               <>
-                <ChatArea
-                  messages={messages}
-                  instance={selectedInstance}
-                  selectedContact={selectedContact}
-                  onSelectContact={handleSelectContact}
-                  onPreviewContact={prefetchContactMessages}
-                />
+                {/* Chat area — wraps the contact list + message pane + contact details panel */}
+                <div className="relative flex min-h-0 flex-1 overflow-hidden">
+                  <ChatArea
+                    messages={messages}
+                    instance={selectedInstance}
+                    selectedContact={selectedContact}
+                    onSelectContact={handleSelectContact}
+                    onPreviewContact={prefetchContactMessages}
+                    instanceToken={selectedInstance.uazapi_instance_id}
+                    onReplyMessage={(msg) => setReplyTo(msg)}
+                    onEditMessage={(msg) => setEditingMessage(msg)}
+                    onDeleteMessage={handleDeleteMessage}
+                    onReactMessage={handleReactMessage}
+                    onOpenContactDetails={() => setShowContactDetails(true)}
+                    typingState={selectedContactTyping}
+                  />
+
+                  {/* Contact details panel — slides in over the chat area */}
+                  {selectedContact && (
+                    <ContactDetailsPanel
+                      open={showContactDetails}
+                      contact={selectedContact}
+                      instanceToken={selectedInstance.uazapi_instance_id}
+                      onClose={() => setShowContactDetails(false)}
+                    />
+                  )}
+                </div>
+
                 <div className="border-t border-white/5 bg-[#111B21]">
                   {sendFeedback && (
                     <div
@@ -537,6 +805,10 @@ export default function Dashboard() {
                     disabled={!selectedContact}
                     selectedInstanceId={selectedInstance?.id ?? null}
                     selectedContactId={selectedContact?.id ?? null}
+                    replyTo={replyTo}
+                    editMessage={editingMessage}
+                    onCancelReply={() => setReplyTo(null)}
+                    onCancelEdit={() => setEditingMessage(null)}
                   />
                 </div>
               </>
@@ -544,7 +816,9 @@ export default function Dashboard() {
               <div className="flex flex-1 items-center justify-center bg-[#0B141A] px-6">
                 <div className="rounded-2xl border border-white/5 bg-[#111B21] px-8 py-10 text-center shadow-2xl">
                   <p className="text-lg font-semibold text-[#E9EDEF]">Central de conversas</p>
-                  <p className="mt-2 text-sm text-[#8696A0]">Selecione uma instancia na lateral para iniciar uma conversa.</p>
+                  <p className="mt-2 text-sm text-[#8696A0]">
+                    Selecione uma instancia na lateral para iniciar uma conversa.
+                  </p>
                 </div>
               </div>
             )}
@@ -573,7 +847,9 @@ export default function Dashboard() {
         <div className="fixed bottom-6 right-6 z-50 w-80 rounded-2xl border border-white/10 bg-[#111B21] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.45)]">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8696A0]">Instância pronta</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8696A0]">
+                Instância pronta
+              </p>
               <p className="text-sm font-bold text-[#E9EDEF]">{latestConnectionResult.instanceName}</p>
             </div>
             <button
@@ -602,7 +878,9 @@ export default function Dashboard() {
 
             {latestConnectionResult.mode === 'paircode' && latestConnectionResult.paircode ? (
               <div className="rounded-xl border border-[#25D366] bg-[#13251b] px-3 py-2 text-center">
-                <p className="text-[11px] uppercase tracking-wide text-[#7dd2a5]">Código de pareamento</p>
+                <p className="text-[11px] uppercase tracking-wide text-[#7dd2a5]">
+                  Código de pareamento
+                </p>
                 <p className="mt-1 text-2xl font-bold tracking-[0.3rem] text-[#7dd2a5]">
                   {latestConnectionResult.paircode.replace(/(.{4})/g, '$1 ').trim()}
                 </p>
