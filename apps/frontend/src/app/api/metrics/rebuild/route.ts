@@ -2,19 +2,15 @@ import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-if (!SUPABASE_URL) {
-  throw new Error('NEXT_PUBLIC_SUPABASE_URL não configurada.')
-}
-
-if (!SERVICE_ROLE_KEY) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.')
-}
-
 export async function POST() {
   try {
+    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+      return NextResponse.json({ success: false, error: 'Credenciais do Supabase nao configuradas.' }, { status: 500 })
+    }
+
     const response = await fetch(`${SUPABASE_URL}/functions/v1/metrics-daily`, {
       method: 'POST',
       headers: {

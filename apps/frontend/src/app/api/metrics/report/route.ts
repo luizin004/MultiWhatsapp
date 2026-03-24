@@ -1,27 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 export const runtime = 'nodejs'
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-
-if (!SUPABASE_URL) {
-  throw new Error('NEXT_PUBLIC_SUPABASE_URL não configurada.')
-}
-
-if (!SERVICE_ROLE_KEY) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.')
-}
-
-if (!OPENAI_API_KEY) {
-  throw new Error('OPENAI_API_KEY não configurada no servidor.')
-}
-
-const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-  auth: { persistSession: false }
-})
 
 const parseIntervalToMs = (raw: string) => {
   const parts = raw.split(':')
@@ -52,6 +32,11 @@ const formatMs = (value?: number | null) => {
 
 export async function POST() {
   try {
+    const supabaseAdmin = getSupabaseAdmin()
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+    if (!OPENAI_API_KEY) {
+      return NextResponse.json({ error: 'OPENAI_API_KEY nao configurada no servidor.' }, { status: 500 })
+    }
     const today = new Date().toISOString().split('T')[0]
 
     const { data: metricsRows, error: metricsError } = await supabaseAdmin

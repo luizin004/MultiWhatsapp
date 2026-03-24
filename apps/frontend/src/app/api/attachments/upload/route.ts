@@ -1,27 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 export const runtime = 'nodejs'
 
 const BUCKET_NAME = process.env.NEXT_PUBLIC_SUPABASE_ATTACHMENTS_BUCKET || 'chat-attachments'
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-if (!SUPABASE_URL) {
-  throw new Error('NEXT_PUBLIC_SUPABASE_URL não configurada.')
-}
-
-if (!SERVICE_ROLE_KEY) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY não configurada no ambiente do servidor.')
-}
-
-const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-  auth: { persistSession: false }
-})
-
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = getSupabaseAdmin()
     const formData = await request.formData()
     const file = formData.get('file')
     const instanceId = formData.get('instanceId')
