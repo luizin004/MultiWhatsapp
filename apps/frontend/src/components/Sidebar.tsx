@@ -45,8 +45,10 @@ export default function Sidebar({
   }
 
   const getInitials = (name: string) => {
+    if (!name) return ''
     return name
       .split(' ')
+      .filter(Boolean)
       .slice(0, 2)
       .map((word) => word[0])
       .join('')
@@ -73,7 +75,7 @@ export default function Sidebar({
       const query = searchTerm.toLowerCase()
       return (
         instance.name?.toLowerCase().includes(query) ||
-        instance.uazapi_instance_id.toLowerCase().includes(query) ||
+        instance.uazapi_instance_id?.toLowerCase().includes(query) ||
         instance.phone_number?.toLowerCase().includes(query)
       )
     })
@@ -115,7 +117,7 @@ export default function Sidebar({
       const lastUpdate = instance.updated_at || instance.created_at
       const isConnected = instance.status === 'connected'
       const isSelected = selectedInstance?.id === instance.id
-      const displayName = instance.name || instance.uazapi_instance_id
+      const displayName = instance.name || instance.uazapi_instance_id || ''
       const initials = getInitials(displayName)
 
       return (

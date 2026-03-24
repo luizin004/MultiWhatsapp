@@ -527,4 +527,4 @@ function aggregateReactions(reactions: Array<{ emoji: string; from: string }>): 
   return Array.from(counts.entries()).map(([emoji, count]) => ({ emoji, count }))
 }
 
-const formatPhoneNumber = (phone: string) => (phone.length < 10 ? phone : phone.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, '+$1 ($2) $3-$4'))
+const formatPhoneNumber = (phone: string) => (!phone ? '' : phone.length < 10 ? phone : phone.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, '+$1 ($2) $3-$4'))

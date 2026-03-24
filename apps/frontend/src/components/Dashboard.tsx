@@ -8,7 +8,7 @@ import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import MessageInput, { AttachmentPayload } from './MessageInput'
 import AddInstanceModal, { ConnectionResultState } from './AddInstanceModal'
-import { sendTextMessage, sendMediaMessage, deleteMessage, reactToMessage } from '@/services/uazapi'
+import { sendTextMessage, sendMediaMessage, deleteMessage, reactToMessage, editMessage } from '@/services/uazapi'
 import { UazapiSSE, UazapiEvent } from '@/lib/uazapi-sse'
 import InstanceProfileModal from './InstanceProfileModal'
 import ContactDetailsPanel from './ContactDetailsPanel'
@@ -205,6 +205,28 @@ export default function Dashboard() {
       } catch (error) {
         console.error('Erro ao reagir à mensagem:', error)
         setSendFeedback({ type: 'error', message: 'Falha ao reagir à mensagem.' })
+      }
+    },
+    [selectedInstance, selectedContact, updateMessageCache]
+  )
+
+  const handleSaveEdit = useCallback(
+    async (messageId: string, newContent: string) => {
+      if (!selectedInstance || !selectedContact) return
+
+      // Optimistically update the message content in cache
+      updateMessageCache(selectedContact.id, (prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, content: newContent } : m))
+      )
+
+      try {
+        await editMessage(selectedInstance.uazapi_instance_id, {
+          id: messageId,
+          text: newContent,
+        })
+      } catch (error) {
+        console.error('Erro ao editar mensagem:', error)
+        setSendFeedback({ type: 'error', message: 'Falha ao editar a mensagem.' })
       }
     },
     [selectedInstance, selectedContact, updateMessageCache]
@@ -985,6 +1007,7 @@ export default function Dashboard() {
                   <MessageInput
                     onSendMessage={handleSendMessage}
                     onSendAttachment={handleSendAttachment}
+                    onSaveEdit={handleSaveEdit}
                     disabled={!selectedContact}
                     selectedInstanceId={selectedInstance?.id ?? null}
                     selectedContactId={selectedContact?.id ?? null}
