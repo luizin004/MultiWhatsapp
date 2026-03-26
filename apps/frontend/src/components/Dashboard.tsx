@@ -19,7 +19,7 @@ import JoinGroupModal from './groups/JoinGroupModal'
 import QuickReplyManager from './QuickReplyManager'
 import LabelsManager from './LabelsManager'
 import WebhookManager from './WebhookManager'
-import { BarChart3, Copy, X, Settings, MessageSquare, Users } from 'lucide-react'
+import { BarChart3, Copy, X, Settings, MessageSquare, Users, Monitor, Smartphone, ArrowLeft, User, Check, CheckCheck, AlertCircle } from 'lucide-react'
 
 // How long (ms) to keep a typing indicator visible before auto-clearing.
 const TYPING_TIMEOUT_MS = 30_000
@@ -59,6 +59,11 @@ export default function Dashboard() {
   const [showQuickReplies, setShowQuickReplies] = useState(false)
   const [showLabels, setShowLabels] = useState(false)
   const [showWebhooks, setShowWebhooks] = useState(false)
+
+  // ── View mode toggle (desktop / mobile) ──────────────────────────────────
+  const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop')
+  // Mobile panel navigation: which screen is visible
+  const [mobilePanel, setMobilePanel] = useState<'sidebar' | 'contacts' | 'chat'>('sidebar')
 
   // ── Typing/presence indicators keyed by contact phone number ─────────────
   const [typingContacts, setTypingContacts] = useState<Record<string, string>>({})
@@ -711,11 +716,13 @@ export default function Dashboard() {
     setSelectedInstanceId(instance.id)
     const firstContact = instance.contacts?.[0]
     setSelectedContactId(firstContact ? firstContact.id : null)
+    if (viewMode === 'mobile') setMobilePanel('contacts')
   }
 
   const handleSelectContact = (contact: Contact) => {
     setSelectedContactId(contact.id)
     markContactAsRead(contact.id)
+    if (viewMode === 'mobile') setMobilePanel('chat')
   }
 
   const handleInstanceUpdated = (updatedInstance: InstanceWithContacts) => {
@@ -778,264 +785,420 @@ export default function Dashboard() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  // Shared sidebar header (tabs + settings)
+  const renderSidebarHeader = () => (
+    <div className="flex items-center bg-[#202C33] px-3 py-2 flex-shrink-0 gap-1">
+      <button
+        onClick={() => setActiveTab('chats')}
+        className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
+          activeTab === 'chats'
+            ? 'bg-[#2A3942] text-[#E9EDEF]'
+            : 'text-[#8696A0] hover:bg-white/5 hover:text-[#E9EDEF]'
+        }`}
+        title="Conversas"
+      >
+        <MessageSquare className="h-4 w-4" />
+        Conversas
+      </button>
+      <button
+        onClick={() => setActiveTab('groups')}
+        className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
+          activeTab === 'groups'
+            ? 'bg-[#2A3942] text-[#E9EDEF]'
+            : 'text-[#8696A0] hover:bg-white/5 hover:text-[#E9EDEF]'
+        }`}
+        title="Grupos"
+      >
+        <Users className="h-4 w-4" />
+        Grupos
+      </button>
+      <div className="relative ml-1">
+        <button
+          onClick={() => setSettingsMenuOpen((prev) => !prev)}
+          className="rounded-full p-2 text-[#aebac1] transition hover:bg-white/10 hover:text-[#E9EDEF]"
+          title="Configurações"
+        >
+          <Settings className="h-4 w-4" />
+        </button>
+        {settingsMenuOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setSettingsMenuOpen(false)} />
+            <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-white/10 bg-[#202C33] py-1 shadow-xl">
+              <button type="button" onClick={() => { setShowQuickReplies(true); setSettingsMenuOpen(false) }} disabled={!selectedInstance} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed">Respostas rápidas</button>
+              <button type="button" onClick={() => { setShowLabels(true); setSettingsMenuOpen(false) }} disabled={!selectedInstance} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed">Etiquetas</button>
+              <button type="button" onClick={() => { setShowWebhooks(true); setSettingsMenuOpen(false) }} disabled={!selectedInstance} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed">Webhooks</button>
+              <button type="button" disabled className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#8696A0]/50 cursor-not-allowed">Privacidade</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+
+  // Shared chat content (used in both desktop and mobile)
+  const renderChatContent = () => {
+    if (!selectedInstance) {
+      return (
+        <div className="flex flex-1 items-center justify-center bg-[#0B141A] px-6">
+          <div className="text-center">
+            <div className="flex h-24 w-24 mx-auto mb-6 items-center justify-center rounded-full border-4 border-[#202C33]">
+              <BarChart3 className="h-10 w-10 text-[#25D366]/30" />
+            </div>
+            <p className="text-[17px] font-light text-[#E9EDEF]">Vigia WhatsApp</p>
+            <p className="mt-2 text-[14px] text-[#8696A0]">Selecione uma instância para ver as conversas.</p>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <>
+        <div className="relative flex min-h-0 flex-1 overflow-hidden">
+          {activeTab === 'groups' ? (
+            <div className="flex flex-1 min-h-0">
+              <div className={`${viewMode === 'mobile' ? 'w-full' : 'w-[320px]'} flex-shrink-0 border-r border-white/[0.04]`}>
+                <div className="flex items-center justify-between border-b border-white/[0.04] bg-[#202C33] px-4 py-3">
+                  <p className="text-[15px] font-semibold text-[#E9EDEF]">Grupos</p>
+                  <button type="button" onClick={() => setShowJoinGroup(true)} className="rounded-full p-1.5 text-[#8696A0] transition hover:bg-white/10 hover:text-[#E9EDEF]" title="Entrar em grupo">
+                    <Users className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-hidden" style={{ height: 'calc(100% - 56px)' }}>
+                  <GroupList instanceToken={selectedInstance.uazapi_instance_id} onSelectGroup={(group: GroupInfo) => { setSelectedGroupJid(group.jid); setShowGroupDetails(true) }} selectedGroupJid={selectedGroupJid} onCreateGroup={() => setShowCreateGroup(true)} />
+                </div>
+              </div>
+              {viewMode !== 'mobile' && (
+                <div className="flex flex-1 items-center justify-center bg-[#0B141A]">
+                  <div className="text-center">
+                    <div className="flex h-20 w-20 mx-auto mb-4 items-center justify-center rounded-full border-2 border-[#202C33]">
+                      <Users className="h-8 w-8 text-[#25D366]/30" />
+                    </div>
+                    <p className="text-[15px] font-light text-[#8696A0]">Selecione um grupo para ver os detalhes</p>
+                  </div>
+                </div>
+              )}
+              {selectedGroupJid && <GroupDetails open={showGroupDetails} groupJid={selectedGroupJid} instanceToken={selectedInstance.uazapi_instance_id} onClose={() => setShowGroupDetails(false)} />}
+              <CreateGroupModal open={showCreateGroup} instanceToken={selectedInstance.uazapi_instance_id} onClose={() => setShowCreateGroup(false)} onCreated={(group: GroupInfo) => { setShowCreateGroup(false); setSelectedGroupJid(group.jid); setShowGroupDetails(true) }} />
+              <JoinGroupModal open={showJoinGroup} instanceToken={selectedInstance.uazapi_instance_id} onClose={() => setShowJoinGroup(false)} onJoined={() => setShowJoinGroup(false)} />
+            </div>
+          ) : (
+            <>
+              <ChatArea
+                messages={messages}
+                instance={selectedInstance}
+                selectedContact={selectedContact}
+                onSelectContact={handleSelectContact}
+                onPreviewContact={prefetchContactMessages}
+                instanceToken={selectedInstance.uazapi_instance_id}
+                onReplyMessage={(msg) => setReplyTo(msg)}
+                onEditMessage={(msg) => setEditingMessage(msg)}
+                onDeleteMessage={handleDeleteMessage}
+                onReactMessage={handleReactMessage}
+                onOpenContactDetails={() => setShowContactDetails(true)}
+                typingState={selectedContactTyping}
+                hideContactList={viewMode === 'mobile'}
+              />
+              {selectedContact && <ContactDetailsPanel open={showContactDetails} contact={selectedContact} instanceToken={selectedInstance.uazapi_instance_id} onClose={() => setShowContactDetails(false)} />}
+            </>
+          )}
+        </div>
+        {activeTab === 'chats' && (
+          <div className="flex-shrink-0 border-t border-white/[0.04]">
+            {sendFeedback && (
+              <div className={`border-b border-white/[0.04] px-4 py-2 text-[13px] ${sendFeedback.type === 'success' ? 'bg-[#1a2c23] text-[#7dd2a5]' : 'bg-[#2c1a1b] text-[#f7a8a2]'}`}>
+                {sendFeedback.message}
+              </div>
+            )}
+            <MessageInput
+              onSendMessage={handleSendMessage}
+              onSendAttachment={handleSendAttachment}
+              onSaveEdit={handleSaveEdit}
+              disabled={!selectedContact}
+              selectedInstanceId={selectedInstance?.id ?? null}
+              selectedContactId={selectedContact?.id ?? null}
+              replyTo={replyTo}
+              editMessage={editingMessage}
+              onCancelReply={() => setReplyTo(null)}
+              onCancelEdit={() => setEditingMessage(null)}
+              instanceToken={selectedInstance?.uazapi_instance_id}
+              contactNumber={selectedContact?.phone_number}
+            />
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ── Mobile contact list panel ───────────────────────────────────────────
+  const renderMobileContactList = () => {
+    if (!selectedInstance) return null
+    const contacts = selectedInstance.contacts || []
+    return (
+      <div className="flex h-full flex-col bg-[#111B21]">
+        <div className="flex items-center gap-3 border-b border-white/[0.04] bg-[#202C33] px-3 py-3 flex-shrink-0">
+          <button onClick={() => setMobilePanel('sidebar')} className="rounded-full p-1.5 text-[#aebac1] transition hover:bg-white/10">
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div>
+            <p className="text-[15px] font-semibold text-[#E9EDEF]">{selectedInstance.name || selectedInstance.uazapi_instance_id}</p>
+            <p className="text-[12px] text-[#8696A0]">{contacts.length} contatos</p>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
+          {contacts.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/5 mb-3">
+                <User className="h-6 w-6 text-white/20" />
+              </div>
+              <p className="text-[13px] text-[#8696A0]">Nenhum contato</p>
+            </div>
+          ) : (
+            <ul>
+              {contacts.map((contact) => {
+                const unread = contact.unread_count || 0
+                const isSelected = selectedContactId === contact.id
+                const displayName = contact.name || contact.phone_number
+                const initials = displayName.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
+                return (
+                  <li key={contact.id} className="border-b border-white/[0.04]">
+                    <button
+                      onClick={() => handleSelectContact(contact)}
+                      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${isSelected ? 'bg-[#2A3942]' : 'hover:bg-white/[0.03]'}`}
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#2A3942] text-[#aebac1] text-sm font-semibold select-none flex-shrink-0">
+                        {initials || <User className="h-5 w-5" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="truncate text-[15px] text-[#E9EDEF]">{displayName}</p>
+                          <span className={`flex-shrink-0 text-[11px] ${unread > 0 ? 'text-[#25D366]' : 'text-[#8696A0]'}`}>
+                            {new Date(contact.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between gap-2">
+                          <p className="truncate text-[13px] text-[#8696A0]">{contact.phone_number}</p>
+                          {unread > 0 && (
+                            <span className="flex-shrink-0 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#25D366] px-1.5 text-[11px] font-semibold text-[#111B21]">
+                              {unread > 99 ? '99+' : unread}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Mobile chat panel ───────────────────────────────────────────────────
+  const renderMobileChatPanel = () => {
+    if (!selectedInstance) return null
+    return (
+      <div className="flex h-full flex-col bg-[#0B141A]">
+        {/* Mobile chat header with back button */}
+        <div className="flex items-center gap-2 border-b border-white/[0.04] bg-[#202C33] px-2 py-2 flex-shrink-0">
+          <button onClick={() => setMobilePanel('contacts')} className="rounded-full p-1.5 text-[#aebac1] transition hover:bg-white/10 flex-shrink-0">
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          {selectedContact ? (
+            <button
+              type="button"
+              onClick={() => setShowContactDetails(true)}
+              className="flex items-center gap-2 rounded-lg px-1 py-1 transition hover:bg-white/5 min-w-0 flex-1"
+            >
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#2A3942] text-[#aebac1] text-xs font-semibold select-none">
+                {(selectedContact.name || selectedContact.phone_number).split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase() || <User className="h-4 w-4" />}
+              </div>
+              <div className="text-left min-w-0">
+                <p className="truncate text-[14px] text-[#E9EDEF] leading-tight">{selectedContact.name || selectedContact.phone_number}</p>
+                {selectedContactTyping && selectedContactTyping !== 'paused' ? (
+                  <p className="text-[12px] text-[#25D366]">{selectedContactTyping === 'composing' ? 'Digitando...' : 'Gravando...'}</p>
+                ) : (
+                  <p className="truncate text-[12px] text-[#8696A0]">{selectedContact.phone_number}</p>
+                )}
+              </div>
+            </button>
+          ) : (
+            <p className="text-[14px] text-[#8696A0]">Selecione um contato</p>
+          )}
+        </div>
+
+        {/* Messages area */}
+        <div className="relative flex-1 overflow-hidden">
+          <div className="chat-wallpaper absolute inset-0" />
+          <div className="relative z-10 flex h-full flex-col overflow-y-auto px-3 py-3 scrollbar-thin">
+            {!selectedContact ? (
+              <div className="flex flex-1 items-center justify-center text-center">
+                <p className="text-[14px] text-[#8696A0]">Escolha um contato</p>
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center text-center">
+                <p className="text-[14px] text-[#8696A0]">Nenhuma mensagem ainda</p>
+              </div>
+            ) : (
+              Object.entries((() => {
+                const groups: { [date: string]: Message[] } = {}
+                messages.forEach((m) => {
+                  const date = new Date(m.created_at).toDateString()
+                  if (!groups[date]) groups[date] = []
+                  groups[date].push(m)
+                })
+                return groups
+              })()).map(([dateStr, msgs]) => (
+                <div key={dateStr} className="space-y-1">
+                  <div className="flex items-center justify-center py-2">
+                    <span className="rounded-lg bg-[#182229]/90 px-3 py-1 text-[11px] text-[#8696A0]">
+                      {(() => {
+                        const d = new Date(msgs[0].created_at)
+                        const today = new Date()
+                        if (d.toDateString() === today.toDateString()) return 'Hoje'
+                        const y = new Date(today); y.setDate(y.getDate() - 1)
+                        if (d.toDateString() === y.toDateString()) return 'Ontem'
+                        return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                      })()}
+                    </span>
+                  </div>
+                  <div className="space-y-[2px]">
+                    {msgs.map((message: Message) => {
+                      const isOutbound = message.direction === 'outbound'
+                      return (
+                        <div key={message.id} className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] rounded-lg px-3 py-[6px] text-[14px] leading-[19px] shadow-sm ${isOutbound ? 'bg-[#005C4B]' : 'bg-[#202C33]'} text-[#E9EDEF]`}>
+                            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                            <div className="mt-[2px] flex items-center justify-end gap-1 float-right ml-3 -mb-0.5">
+                              <span className="text-[11px] text-white/50">{new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                              {isOutbound && (
+                                message.status === 'read' ? <CheckCheck className="h-3.5 w-3.5 text-sky-400" /> :
+                                message.status === 'delivered' ? <CheckCheck className="h-3.5 w-3.5 text-white/70" /> :
+                                message.status === 'failed' ? <AlertCircle className="h-3.5 w-3.5 text-[#f7a8a2]" /> :
+                                <Check className="h-3.5 w-3.5 text-white/70" />
+                              )}
+                            </div>
+                            <div className="clear-both" />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Message input */}
+        <div className="flex-shrink-0 border-t border-white/[0.04]">
+          {sendFeedback && (
+            <div className={`border-b border-white/[0.04] px-3 py-1.5 text-[12px] ${sendFeedback.type === 'success' ? 'bg-[#1a2c23] text-[#7dd2a5]' : 'bg-[#2c1a1b] text-[#f7a8a2]'}`}>
+              {sendFeedback.message}
+            </div>
+          )}
+          <MessageInput
+            onSendMessage={handleSendMessage}
+            onSendAttachment={handleSendAttachment}
+            onSaveEdit={handleSaveEdit}
+            disabled={!selectedContact}
+            selectedInstanceId={selectedInstance?.id ?? null}
+            selectedContactId={selectedContact?.id ?? null}
+            replyTo={replyTo}
+            editMessage={editingMessage}
+            onCancelReply={() => setReplyTo(null)}
+            onCancelEdit={() => setEditingMessage(null)}
+            instanceToken={selectedInstance?.uazapi_instance_id}
+            contactNumber={selectedContact?.phone_number}
+          />
+        </div>
+
+        {/* Contact details panel */}
+        {selectedContact && <ContactDetailsPanel open={showContactDetails} contact={selectedContact} instanceToken={selectedInstance.uazapi_instance_id} onClose={() => setShowContactDetails(false)} />}
+      </div>
+    )
+  }
+
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#0B141A] text-[#E9EDEF]">
-      {/* Metrics link — floating top-right */}
-      <div className="absolute right-4 top-4 z-20">
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-[#0B141A] text-[#E9EDEF]">
+      {/* ── Top bar: view mode toggle + metrics ────────────────────────────── */}
+      <div className="flex items-center justify-between border-b border-white/[0.08] bg-[#202C33] px-4 py-2 flex-shrink-0 z-20">
+        <div className="flex items-center gap-1 rounded-lg bg-[#111B21] p-1">
+          <button
+            onClick={() => { setViewMode('desktop'); setMobilePanel('sidebar') }}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
+              viewMode === 'desktop'
+                ? 'bg-[#2A3942] text-[#E9EDEF] shadow-sm'
+                : 'text-[#8696A0] hover:text-[#E9EDEF]'
+            }`}
+          >
+            <Monitor className="h-4 w-4" />
+            Desktop
+          </button>
+          <button
+            onClick={() => { setViewMode('mobile'); setMobilePanel('sidebar') }}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
+              viewMode === 'mobile'
+                ? 'bg-[#2A3942] text-[#E9EDEF] shadow-sm'
+                : 'text-[#8696A0] hover:text-[#E9EDEF]'
+            }`}
+          >
+            <Smartphone className="h-4 w-4" />
+            Mobile
+          </button>
+        </div>
+
         <Link
           href="/metrics"
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#202C33] px-3 py-1.5 text-[13px] font-medium text-[#aebac1] shadow-lg transition hover:bg-[#2A3942] hover:text-[#E9EDEF]"
+          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#111B21] px-3 py-1.5 text-[13px] font-medium text-[#aebac1] transition hover:bg-[#2A3942] hover:text-[#E9EDEF]"
         >
           <BarChart3 className="h-3.5 w-3.5 text-[#25D366]" />
           Métricas
         </Link>
       </div>
 
-      {/* Main app shell — true full-screen WhatsApp layout */}
-      <div className="flex h-full w-full overflow-hidden">
-        <div className="flex w-[400px] flex-shrink-0 flex-col border-r border-white/[0.04]">
-          {/* Sidebar header with tab toggle and settings button */}
-          <div className="flex items-center bg-[#202C33] px-3 py-2 flex-shrink-0 gap-1">
-            <button
-              onClick={() => setActiveTab('chats')}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
-                activeTab === 'chats'
-                  ? 'bg-[#2A3942] text-[#E9EDEF]'
-                  : 'text-[#8696A0] hover:bg-white/5 hover:text-[#E9EDEF]'
-              }`}
-              title="Conversas"
-            >
-              <MessageSquare className="h-4 w-4" />
-              Conversas
-            </button>
-            <button
-              onClick={() => setActiveTab('groups')}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
-                activeTab === 'groups'
-                  ? 'bg-[#2A3942] text-[#E9EDEF]'
-                  : 'text-[#8696A0] hover:bg-white/5 hover:text-[#E9EDEF]'
-              }`}
-              title="Grupos"
-            >
-              <Users className="h-4 w-4" />
-              Grupos
-            </button>
-            {/* Settings dropdown */}
-            <div className="relative ml-1">
-              <button
-                onClick={() => setSettingsMenuOpen((prev) => !prev)}
-                className="rounded-full p-2 text-[#aebac1] transition hover:bg-white/10 hover:text-[#E9EDEF]"
-                title="Configurações"
-              >
-                <Settings className="h-4 w-4" />
-              </button>
-              {settingsMenuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setSettingsMenuOpen(false)}
-                  />
-                  <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-white/10 bg-[#202C33] py-1 shadow-xl">
-                    <button
-                      type="button"
-                      onClick={() => { setShowQuickReplies(true); setSettingsMenuOpen(false) }}
-                      disabled={!selectedInstance}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed"
-                    >
-                      Respostas rápidas
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setShowLabels(true); setSettingsMenuOpen(false) }}
-                      disabled={!selectedInstance}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed"
-                    >
-                      Etiquetas
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setShowWebhooks(true); setSettingsMenuOpen(false) }}
-                      disabled={!selectedInstance}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed"
-                    >
-                      Webhooks
-                    </button>
-                    <button
-                      type="button"
-                      disabled
-                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#8696A0]/50 cursor-not-allowed"
-                    >
-                      Privacidade
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+      {/* ── Desktop layout ─────────────────────────────────────────────────── */}
+      {viewMode === 'desktop' ? (
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="flex w-[400px] flex-shrink-0 flex-col border-r border-white/[0.04]">
+            {renderSidebarHeader()}
+            <Sidebar
+              instances={instances}
+              selectedInstance={selectedInstance}
+              onSelectInstance={handleSelectInstance}
+              loading={loading}
+              onAddInstance={() => setIsModalOpen(true)}
+              onEditInstance={(instance) => setEditingInstance(instance)}
+            />
           </div>
-
-          {/* Sidebar instance list (always visible) */}
-          <Sidebar
-            instances={instances}
-            selectedInstance={selectedInstance}
-            onSelectInstance={handleSelectInstance}
-            loading={loading}
-            onAddInstance={() => setIsModalOpen(true)}
-            onEditInstance={(instance) => setEditingInstance(instance)}
-          />
+          <div className="flex min-h-0 flex-1 flex-col bg-[#0B141A]">
+            {renderChatContent()}
+          </div>
         </div>
-
-        <div className="flex min-h-0 flex-1 flex-col bg-[#0B141A]">
-          {selectedInstance ? (
-            <>
-              {/* Chat/groups area */}
-              <div className="relative flex min-h-0 flex-1 overflow-hidden">
-                {activeTab === 'groups' ? (
-                  /* Groups tab: show group list + group details panel */
-                  <div className="flex flex-1 min-h-0">
-                    <div className="w-[320px] flex-shrink-0 border-r border-white/[0.04]">
-                      <div className="flex items-center justify-between border-b border-white/[0.04] bg-[#202C33] px-4 py-3">
-                        <p className="text-[15px] font-semibold text-[#E9EDEF]">Grupos</p>
-                        <button
-                          type="button"
-                          onClick={() => setShowJoinGroup(true)}
-                          className="rounded-full p-1.5 text-[#8696A0] transition hover:bg-white/10 hover:text-[#E9EDEF]"
-                          title="Entrar em grupo"
-                        >
-                          <Users className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <div className="flex-1 overflow-hidden" style={{ height: 'calc(100% - 56px)' }}>
-                        <GroupList
-                          instanceToken={selectedInstance.uazapi_instance_id}
-                          onSelectGroup={(group: GroupInfo) => {
-                            setSelectedGroupJid(group.jid)
-                            setShowGroupDetails(true)
-                          }}
-                          selectedGroupJid={selectedGroupJid}
-                          onCreateGroup={() => setShowCreateGroup(true)}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Empty state when no group is selected */}
-                    <div className="flex flex-1 items-center justify-center bg-[#0B141A]">
-                      <div className="text-center">
-                        <div className="flex h-20 w-20 mx-auto mb-4 items-center justify-center rounded-full border-2 border-[#202C33]">
-                          <Users className="h-8 w-8 text-[#25D366]/30" />
-                        </div>
-                        <p className="text-[15px] font-light text-[#8696A0]">
-                          Selecione um grupo para ver os detalhes
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Group details slide-in panel */}
-                    {selectedGroupJid && (
-                      <GroupDetails
-                        open={showGroupDetails}
-                        groupJid={selectedGroupJid}
-                        instanceToken={selectedInstance.uazapi_instance_id}
-                        onClose={() => setShowGroupDetails(false)}
-                      />
-                    )}
-
-                    {/* Create group modal */}
-                    <CreateGroupModal
-                      open={showCreateGroup}
-                      instanceToken={selectedInstance.uazapi_instance_id}
-                      onClose={() => setShowCreateGroup(false)}
-                      onCreated={(group: GroupInfo) => {
-                        setShowCreateGroup(false)
-                        setSelectedGroupJid(group.jid)
-                        setShowGroupDetails(true)
-                      }}
-                    />
-
-                    {/* Join group modal */}
-                    <JoinGroupModal
-                      open={showJoinGroup}
-                      instanceToken={selectedInstance.uazapi_instance_id}
-                      onClose={() => setShowJoinGroup(false)}
-                      onJoined={() => setShowJoinGroup(false)}
-                    />
-                  </div>
-                ) : (
-                  /* Chats tab: existing chat area */
-                  <>
-                    <ChatArea
-                      messages={messages}
-                      instance={selectedInstance}
-                      selectedContact={selectedContact}
-                      onSelectContact={handleSelectContact}
-                      onPreviewContact={prefetchContactMessages}
-                      instanceToken={selectedInstance.uazapi_instance_id}
-                      onReplyMessage={(msg) => setReplyTo(msg)}
-                      onEditMessage={(msg) => setEditingMessage(msg)}
-                      onDeleteMessage={handleDeleteMessage}
-                      onReactMessage={handleReactMessage}
-                      onOpenContactDetails={() => setShowContactDetails(true)}
-                      typingState={selectedContactTyping}
-                    />
-
-                    {/* Contact details panel — slides in over the chat area */}
-                    {selectedContact && (
-                      <ContactDetailsPanel
-                        open={showContactDetails}
-                        contact={selectedContact}
-                        instanceToken={selectedInstance.uazapi_instance_id}
-                        onClose={() => setShowContactDetails(false)}
-                      />
-                    )}
-                  </>
-                )}
+      ) : (
+        /* ── Mobile layout — phone frame centered ─────────────────────────── */
+        <div className="flex flex-1 items-center justify-center bg-[#0a0f12] overflow-hidden py-4">
+          <div className="mobile-frame bg-[#0B141A]">
+            {mobilePanel === 'sidebar' && (
+              <div className="flex h-full flex-col">
+                {renderSidebarHeader()}
+                <Sidebar
+                  instances={instances}
+                  selectedInstance={selectedInstance}
+                  onSelectInstance={handleSelectInstance}
+                  loading={loading}
+                  onAddInstance={() => setIsModalOpen(true)}
+                  onEditInstance={(instance) => setEditingInstance(instance)}
+                  compact
+                />
               </div>
-
-              {/* Message input — only shown in chats tab */}
-              {activeTab === 'chats' && (
-                <div className="flex-shrink-0 border-t border-white/[0.04]">
-                  {sendFeedback && (
-                    <div
-                      className={`border-b border-white/[0.04] px-4 py-2 text-[13px] ${
-                        sendFeedback.type === 'success'
-                          ? 'bg-[#1a2c23] text-[#7dd2a5]'
-                          : 'bg-[#2c1a1b] text-[#f7a8a2]'
-                      }`}
-                    >
-                      {sendFeedback.message}
-                    </div>
-                  )}
-                  <MessageInput
-                    onSendMessage={handleSendMessage}
-                    onSendAttachment={handleSendAttachment}
-                    onSaveEdit={handleSaveEdit}
-                    disabled={!selectedContact}
-                    selectedInstanceId={selectedInstance?.id ?? null}
-                    selectedContactId={selectedContact?.id ?? null}
-                    replyTo={replyTo}
-                    editMessage={editingMessage}
-                    onCancelReply={() => setReplyTo(null)}
-                    onCancelEdit={() => setEditingMessage(null)}
-                    instanceToken={selectedInstance?.uazapi_instance_id}
-                    contactNumber={selectedContact?.phone_number}
-                  />
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="flex flex-1 items-center justify-center bg-[#0B141A] px-6">
-              <div className="text-center">
-                <div className="flex h-24 w-24 mx-auto mb-6 items-center justify-center rounded-full border-4 border-[#202C33]">
-                  <BarChart3 className="h-10 w-10 text-[#25D366]/30" />
-                </div>
-                <p className="text-[17px] font-light text-[#E9EDEF]">Vigia WhatsApp</p>
-                <p className="mt-2 text-[14px] text-[#8696A0]">
-                  Selecione uma instância na lateral para ver as conversas.
-                </p>
-              </div>
-            </div>
-          )}
+            )}
+            {mobilePanel === 'contacts' && renderMobileContactList()}
+            {mobilePanel === 'chat' && renderMobileChatPanel()}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Tools / settings modals */}
       {selectedInstance && (

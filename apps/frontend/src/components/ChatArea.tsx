@@ -25,6 +25,8 @@ interface ChatAreaProps {
   onOpenContactDetails?: () => void
   /** Presence state for the selected contact: 'composing' | 'recording' | null */
   typingState?: string | null
+  /** When true, hides the contact list sidebar (used in mobile view) */
+  hideContactList?: boolean
 }
 
 export default function ChatArea({
@@ -40,6 +42,7 @@ export default function ChatArea({
   onReactMessage,
   onOpenContactDetails,
   typingState,
+  hideContactList = false,
 }: ChatAreaProps) {
   // Convenience aliases used internally so existing MessageActions wiring stays clear
   const onReply = onReplyMessage
@@ -205,7 +208,7 @@ export default function ChatArea({
   return (
     <div className="flex flex-1 min-h-0 bg-[#0B141A] text-[#E9EDEF]">
       {/* Lista de contatos da instancia */}
-      <aside className="hidden w-[320px] flex-shrink-0 flex-col border-r border-white/[0.04] bg-[#111B21] lg:flex">
+      <aside className={`${hideContactList ? 'hidden' : 'hidden lg:flex'} w-[320px] flex-shrink-0 flex-col border-r border-white/[0.04] bg-[#111B21]`}>
         <div className="flex items-center justify-between border-b border-white/[0.04] bg-[#202C33] px-4 py-3 flex-shrink-0">
           <div>
             <p className="text-[15px] font-semibold text-[#E9EDEF]">Contatos</p>

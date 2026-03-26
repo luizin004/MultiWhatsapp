@@ -11,6 +11,8 @@ interface SidebarProps {
   loading: boolean
   onAddInstance: () => void
   onEditInstance: (instance: InstanceWithContacts) => void
+  /** When true, renders a narrower version for mobile view */
+  compact?: boolean
 }
 
 export default function Sidebar({
@@ -19,7 +21,8 @@ export default function Sidebar({
   onSelectInstance,
   loading,
   onAddInstance,
-  onEditInstance
+  onEditInstance,
+  compact = false
 }: SidebarProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'groups'>('all')
@@ -199,7 +202,7 @@ export default function Sidebar({
   ]
 
   return (
-    <aside className="flex w-[400px] flex-shrink-0 flex-col border-r border-white/[0.04] bg-[#111B21] scrollbar-thin">
+    <aside className={`flex ${compact ? 'w-full' : 'w-[400px]'} flex-shrink-0 flex-col border-r border-white/[0.04] bg-[#111B21] scrollbar-thin`}>
       {/* Top bar */}
       <div className="flex items-center justify-between bg-[#202C33] px-4 py-3 flex-shrink-0">
         <div className="flex items-center gap-3">
