@@ -823,7 +823,7 @@ export default function Dashboard() {
         {settingsMenuOpen && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setSettingsMenuOpen(false)} />
-            <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-white/10 bg-[#202C33] py-1 shadow-xl">
+            <div className={`absolute top-full z-50 mt-1 w-48 rounded-xl border border-white/10 bg-[#202C33] py-1 shadow-xl ${viewMode === 'mobile' ? 'right-auto left-0 -ml-24' : 'right-0'}`}>
               <button type="button" onClick={() => { setShowQuickReplies(true); setSettingsMenuOpen(false) }} disabled={!selectedInstance} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed">Respostas rápidas</button>
               <button type="button" onClick={() => { setShowLabels(true); setSettingsMenuOpen(false) }} disabled={!selectedInstance} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed">Etiquetas</button>
               <button type="button" onClick={() => { setShowWebhooks(true); setSettingsMenuOpen(false) }} disabled={!selectedInstance} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed">Webhooks</button>
@@ -841,11 +841,16 @@ export default function Dashboard() {
       return (
         <div className="flex flex-1 items-center justify-center bg-[#0B141A] px-6">
           <div className="text-center">
-            <div className="flex h-24 w-24 mx-auto mb-6 items-center justify-center rounded-full border-4 border-[#202C33]">
-              <BarChart3 className="h-10 w-10 text-[#25D366]/30" />
+            <div className="empty-state-icon flex h-28 w-28 mx-auto mb-6 items-center justify-center rounded-full bg-gradient-to-br from-[#202C33] to-[#111B21] border border-white/[0.06] shadow-lg">
+              <BarChart3 className="h-12 w-12 text-[#25D366]/40" />
             </div>
-            <p className="text-[17px] font-light text-[#E9EDEF]">Vigia WhatsApp</p>
-            <p className="mt-2 text-[14px] text-[#8696A0]">Selecione uma instância para ver as conversas.</p>
+            <p className="text-[20px] font-medium text-[#E9EDEF] tracking-tight">Vigia WhatsApp</p>
+            <p className="mt-2 text-[14px] text-[#8696A0] max-w-[280px] mx-auto leading-relaxed">Selecione uma instancia na lateral para visualizar conversas e contatos.</p>
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#25D366]/40" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[#25D366]/20" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[#25D366]/10" />
+            </div>
           </div>
         </div>
       )
@@ -1123,38 +1128,43 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#0B141A] text-[#E9EDEF]">
       {/* ── Top bar: view mode toggle + metrics ────────────────────────────── */}
-      <div className="flex items-center justify-between border-b border-white/[0.08] bg-[#202C33] px-4 py-2 flex-shrink-0 z-20">
-        <div className="flex items-center gap-1 rounded-lg bg-[#111B21] p-1">
-          <button
-            onClick={() => { setViewMode('desktop'); setMobilePanel('sidebar') }}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
-              viewMode === 'desktop'
-                ? 'bg-[#2A3942] text-[#E9EDEF] shadow-sm'
-                : 'text-[#8696A0] hover:text-[#E9EDEF]'
-            }`}
-          >
-            <Monitor className="h-4 w-4" />
-            Desktop
-          </button>
-          <button
-            onClick={() => { setViewMode('mobile'); setMobilePanel('sidebar') }}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
-              viewMode === 'mobile'
-                ? 'bg-[#2A3942] text-[#E9EDEF] shadow-sm'
-                : 'text-[#8696A0] hover:text-[#E9EDEF]'
-            }`}
-          >
-            <Smartphone className="h-4 w-4" />
-            Mobile
-          </button>
+      <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#1a252c] px-5 py-2.5 flex-shrink-0 z-20">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-0.5 rounded-xl bg-[#0B141A] p-1 border border-white/[0.06]">
+            <button
+              onClick={() => { setViewMode('desktop'); setMobilePanel('sidebar') }}
+              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all duration-200 ${
+                viewMode === 'desktop'
+                  ? 'bg-[#25D366]/15 text-[#25D366] toggle-glow'
+                  : 'text-[#8696A0] hover:text-[#E9EDEF] hover:bg-white/[0.04]'
+              }`}
+            >
+              <Monitor className="h-4 w-4" />
+              Desktop
+            </button>
+            <button
+              onClick={() => { setViewMode('mobile'); setMobilePanel('sidebar') }}
+              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all duration-200 ${
+                viewMode === 'mobile'
+                  ? 'bg-[#25D366]/15 text-[#25D366] toggle-glow'
+                  : 'text-[#8696A0] hover:text-[#E9EDEF] hover:bg-white/[0.04]'
+              }`}
+            >
+              <Smartphone className="h-4 w-4" />
+              Mobile
+            </button>
+          </div>
+          {viewMode === 'mobile' && (
+            <span className="text-[11px] text-[#8696A0]/60 font-medium tracking-wide uppercase">iPhone Pro Max — 430 x 932</span>
+          )}
         </div>
 
         <Link
           href="/metrics"
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#111B21] px-3 py-1.5 text-[13px] font-medium text-[#aebac1] transition hover:bg-[#2A3942] hover:text-[#E9EDEF]"
+          className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-[#0B141A] px-4 py-2 text-[13px] font-medium text-[#aebac1] transition-all hover:bg-[#202C33] hover:text-[#E9EDEF] hover:border-[#25D366]/30"
         >
           <BarChart3 className="h-3.5 w-3.5 text-[#25D366]" />
-          Métricas
+          Metricas
         </Link>
       </div>
 
@@ -1178,24 +1188,37 @@ export default function Dashboard() {
         </div>
       ) : (
         /* ── Mobile layout — phone frame centered ─────────────────────────── */
-        <div className="flex flex-1 items-center justify-center bg-[#0a0f12] overflow-hidden py-4">
-          <div className="mobile-frame bg-[#0B141A]">
-            {mobilePanel === 'sidebar' && (
-              <div className="flex h-full flex-col">
-                {renderSidebarHeader()}
-                <Sidebar
-                  instances={instances}
-                  selectedInstance={selectedInstance}
-                  onSelectInstance={handleSelectInstance}
-                  loading={loading}
-                  onAddInstance={() => setIsModalOpen(true)}
-                  onEditInstance={(instance) => setEditingInstance(instance)}
-                  compact
-                />
+        <div className="flex flex-1 items-center justify-center bg-[#060a0d] overflow-hidden py-4">
+          <div className="mobile-frame">
+            {/* iOS Status Bar */}
+            <div className="mobile-status-bar">
+              <span className="status-time">{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+              <div className="status-icons">
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M1 8h2v4H1zM5 5h2v7H5zM9 2h2v10H9zM13 0h2v12h-2z" fill="rgba(233,237,239,0.7)"/></svg>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 2.5C5.8 2.5 3.8 3.4 2.4 4.8l1.4 1.4C5 5 6.4 4.3 8 4.3s3 .7 4.2 1.9l1.4-1.4C12.2 3.4 10.2 2.5 8 2.5zM8 6.1c-1.2 0-2.3.5-3.1 1.3L6.3 8.8c.5-.4 1.1-.7 1.7-.7s1.2.3 1.7.7l1.4-1.4C10.3 6.6 9.2 6.1 8 6.1zM8 9.8c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9z" fill="rgba(233,237,239,0.7)"/></svg>
+                <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="2" stroke="rgba(233,237,239,0.35)"/><rect x="2" y="2" width="14" height="8" rx="1" fill="#25D366"/><rect x="23" y="4" width="2" height="4" rx="1" fill="rgba(233,237,239,0.35)"/></svg>
               </div>
-            )}
-            {mobilePanel === 'contacts' && renderMobileContactList()}
-            {mobilePanel === 'chat' && renderMobileChatPanel()}
+            </div>
+
+            {/* Safe content area */}
+            <div className="mobile-safe-content">
+              {mobilePanel === 'sidebar' && (
+                <div className="flex h-full flex-col">
+                  {renderSidebarHeader()}
+                  <Sidebar
+                    instances={instances}
+                    selectedInstance={selectedInstance}
+                    onSelectInstance={handleSelectInstance}
+                    loading={loading}
+                    onAddInstance={() => setIsModalOpen(true)}
+                    onEditInstance={(instance) => setEditingInstance(instance)}
+                    compact
+                  />
+                </div>
+              )}
+              {mobilePanel === 'contacts' && renderMobileContactList()}
+              {mobilePanel === 'chat' && renderMobileChatPanel()}
+            </div>
           </div>
         </div>
       )}

@@ -152,30 +152,83 @@ body {
 .mobile-frame {
   width: 430px;
   height: 932px;
-  max-height: calc(100vh - 56px);
-  border-radius: 40px;
-  border: 4px solid #2A3942;
+  max-height: calc(100vh - 72px);
+  border-radius: 48px;
+  border: 5px solid #1c2a32;
   overflow: hidden;
   box-shadow:
-    0 0 0 2px rgba(255,255,255,0.05),
-    0 25px 60px rgba(0,0,0,0.5),
-    inset 0 0 0 1px rgba(255,255,255,0.03);
+    0 0 0 1px rgba(255,255,255,0.06),
+    0 0 0 3px #141e24,
+    0 30px 80px rgba(0,0,0,0.6),
+    0 10px 30px rgba(0,0,0,0.3),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
   position: relative;
+  background: #0B141A;
 }
 
+/* Dynamic Island */
 .mobile-frame::before {
   content: '';
   position: absolute;
-  top: 0;
+  top: 8px;
   left: 50%;
   transform: translateX(-50%);
-  width: 126px;
-  height: 28px;
-  background: #111B21;
-  border-radius: 0 0 16px 16px;
-  z-index: 30;
-  border: 2px solid #2A3942;
-  border-top: 0;
+  width: 120px;
+  height: 32px;
+  background: #000;
+  border-radius: 20px;
+  z-index: 50;
+}
+
+/* Home indicator bar */
+.mobile-frame::after {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 134px;
+  height: 5px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 100px;
+  z-index: 50;
+}
+
+/* Status bar inside mobile frame */
+.mobile-status-bar {
+  height: 54px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 28px 6px;
+  background: #202C33;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 40;
+}
+
+.mobile-status-bar .status-time {
+  font-size: 15px;
+  font-weight: 600;
+  color: #E9EDEF;
+  letter-spacing: -0.3px;
+}
+
+.mobile-status-bar .status-icons {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Mobile safe area for content below status bar */
+.mobile-safe-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Add safe bottom padding for home indicator */
+  padding-bottom: 20px;
 }
 
 /* Mobile slide transitions */
@@ -195,6 +248,21 @@ body {
 @keyframes slide-out-left {
   from { transform: translateX(0); }
   to { transform: translateX(-100%); }
+}
+
+/* Empty state subtle animation */
+@keyframes float-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.empty-state-icon {
+  animation: float-gentle 4s ease-in-out infinite;
+}
+
+/* Glow effect for active toggle */
+.toggle-glow {
+  box-shadow: 0 0 12px rgba(37, 211, 102, 0.15), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
 /* ─── Textarea auto-resize ──────────────────────────────────────────────────── */
