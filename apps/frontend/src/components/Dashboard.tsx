@@ -65,6 +65,15 @@ export default function Dashboard() {
   // Mobile panel navigation: which screen is visible
   const [mobilePanel, setMobilePanel] = useState<'sidebar' | 'contacts' | 'chat'>('sidebar')
 
+  // Auto-detect mobile on real small screens
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    if (mq.matches) setViewMode('mobile')
+    const handler = (e: MediaQueryListEvent) => setViewMode(e.matches ? 'mobile' : 'desktop')
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   // ── Typing/presence indicators keyed by contact phone number ─────────────
   const [typingContacts, setTypingContacts] = useState<Record<string, string>>({})
   const typingTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -823,7 +832,7 @@ export default function Dashboard() {
         {settingsMenuOpen && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setSettingsMenuOpen(false)} />
-            <div className={`absolute top-full z-50 mt-1 w-48 rounded-xl border border-white/10 bg-[#202C33] py-1 shadow-xl ${viewMode === 'mobile' ? 'right-auto left-0 -ml-24' : 'right-0'}`}>
+            <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-white/10 bg-[#202C33] py-1 shadow-xl">
               <button type="button" onClick={() => { setShowQuickReplies(true); setSettingsMenuOpen(false) }} disabled={!selectedInstance} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed">Respostas rápidas</button>
               <button type="button" onClick={() => { setShowLabels(true); setSettingsMenuOpen(false) }} disabled={!selectedInstance} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed">Etiquetas</button>
               <button type="button" onClick={() => { setShowWebhooks(true); setSettingsMenuOpen(false) }} disabled={!selectedInstance} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#E9EDEF] transition hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed">Webhooks</button>
@@ -1127,36 +1136,31 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#0B141A] text-[#E9EDEF]">
-      {/* ── Top bar: view mode toggle + metrics ────────────────────────────── */}
-      <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#1a252c] px-5 py-2.5 flex-shrink-0 z-20">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-0.5 rounded-xl bg-[#0B141A] p-1 border border-white/[0.06]">
-            <button
-              onClick={() => { setViewMode('desktop'); setMobilePanel('sidebar') }}
-              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all duration-200 ${
-                viewMode === 'desktop'
-                  ? 'bg-[#25D366]/15 text-[#25D366] toggle-glow'
-                  : 'text-[#8696A0] hover:text-[#E9EDEF] hover:bg-white/[0.04]'
-              }`}
-            >
-              <Monitor className="h-4 w-4" />
-              Desktop
-            </button>
-            <button
-              onClick={() => { setViewMode('mobile'); setMobilePanel('sidebar') }}
-              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all duration-200 ${
-                viewMode === 'mobile'
-                  ? 'bg-[#25D366]/15 text-[#25D366] toggle-glow'
-                  : 'text-[#8696A0] hover:text-[#E9EDEF] hover:bg-white/[0.04]'
-              }`}
-            >
-              <Smartphone className="h-4 w-4" />
-              Mobile
-            </button>
-          </div>
-          {viewMode === 'mobile' && (
-            <span className="text-[11px] text-[#8696A0]/60 font-medium tracking-wide uppercase">iPhone Pro Max — 430 x 932</span>
-          )}
+      {/* ── Top bar: view mode toggle + metrics (hidden on small screens) ── */}
+      <div className="hidden md:flex items-center justify-between border-b border-white/[0.06] bg-[#1a252c] px-5 py-2.5 flex-shrink-0 z-20">
+        <div className="flex items-center gap-0.5 rounded-xl bg-[#0B141A] p-1 border border-white/[0.06]">
+          <button
+            onClick={() => { setViewMode('desktop'); setMobilePanel('sidebar') }}
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all duration-200 ${
+              viewMode === 'desktop'
+                ? 'bg-[#25D366]/15 text-[#25D366] toggle-glow'
+                : 'text-[#8696A0] hover:text-[#E9EDEF] hover:bg-white/[0.04]'
+            }`}
+          >
+            <Monitor className="h-4 w-4" />
+            Desktop
+          </button>
+          <button
+            onClick={() => { setViewMode('mobile'); setMobilePanel('sidebar') }}
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all duration-200 ${
+              viewMode === 'mobile'
+                ? 'bg-[#25D366]/15 text-[#25D366] toggle-glow'
+                : 'text-[#8696A0] hover:text-[#E9EDEF] hover:bg-white/[0.04]'
+            }`}
+          >
+            <Smartphone className="h-4 w-4" />
+            Mobile
+          </button>
         </div>
 
         <Link
@@ -1170,7 +1174,7 @@ export default function Dashboard() {
 
       {/* ── Desktop layout ─────────────────────────────────────────────────── */}
       {viewMode === 'desktop' ? (
-        <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="hidden md:flex min-h-0 flex-1 overflow-hidden">
           <div className="flex w-[400px] flex-shrink-0 flex-col border-r border-white/[0.04]">
             {renderSidebarHeader()}
             <Sidebar
@@ -1186,42 +1190,49 @@ export default function Dashboard() {
             {renderChatContent()}
           </div>
         </div>
-      ) : (
-        /* ── Mobile layout — phone frame centered ─────────────────────────── */
-        <div className="flex flex-1 items-center justify-center bg-[#060a0d] overflow-hidden py-4">
-          <div className="mobile-frame">
-            {/* iOS Status Bar */}
-            <div className="mobile-status-bar">
-              <span className="status-time">{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-              <div className="status-icons">
-                <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M1 8h2v4H1zM5 5h2v7H5zM9 2h2v10H9zM13 0h2v12h-2z" fill="rgba(233,237,239,0.7)"/></svg>
-                <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 2.5C5.8 2.5 3.8 3.4 2.4 4.8l1.4 1.4C5 5 6.4 4.3 8 4.3s3 .7 4.2 1.9l1.4-1.4C12.2 3.4 10.2 2.5 8 2.5zM8 6.1c-1.2 0-2.3.5-3.1 1.3L6.3 8.8c.5-.4 1.1-.7 1.7-.7s1.2.3 1.7.7l1.4-1.4C10.3 6.6 9.2 6.1 8 6.1zM8 9.8c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9z" fill="rgba(233,237,239,0.7)"/></svg>
-                <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="2" stroke="rgba(233,237,239,0.35)"/><rect x="2" y="2" width="14" height="8" rx="1" fill="#25D366"/><rect x="23" y="4" width="2" height="4" rx="1" fill="rgba(233,237,239,0.35)"/></svg>
-              </div>
-            </div>
+      ) : null}
 
-            {/* Safe content area */}
-            <div className="mobile-safe-content">
-              {mobilePanel === 'sidebar' && (
-                <div className="flex h-full flex-col">
-                  {renderSidebarHeader()}
-                  <Sidebar
-                    instances={instances}
-                    selectedInstance={selectedInstance}
-                    onSelectInstance={handleSelectInstance}
-                    loading={loading}
-                    onAddInstance={() => setIsModalOpen(true)}
-                    onEditInstance={(instance) => setEditingInstance(instance)}
-                    compact
-                  />
-                </div>
-              )}
-              {mobilePanel === 'contacts' && renderMobileContactList()}
-              {mobilePanel === 'chat' && renderMobileChatPanel()}
+      {/* ── Mobile layout — full screen, no frame (desktop toggle) ─────── */}
+      {viewMode === 'mobile' ? (
+        <div data-mobile-panel="desktop-toggle" className="hidden md:flex flex-1 flex-col min-h-0 overflow-hidden bg-[#0B141A]">
+          {mobilePanel === 'sidebar' && (
+            <div className="flex h-full flex-col">
+              {renderSidebarHeader()}
+              <Sidebar
+                instances={instances}
+                selectedInstance={selectedInstance}
+                onSelectInstance={handleSelectInstance}
+                loading={loading}
+                onAddInstance={() => setIsModalOpen(true)}
+                onEditInstance={(instance) => setEditingInstance(instance)}
+                compact
+              />
             </div>
-          </div>
+          )}
+          {mobilePanel === 'contacts' && renderMobileContactList()}
+          {mobilePanel === 'chat' && renderMobileChatPanel()}
         </div>
-      )}
+      ) : null}
+
+      {/* ── Auto-responsive: real mobile devices always get mobile layout ── */}
+      <div data-mobile-panel="auto" className="flex md:hidden flex-1 flex-col min-h-0 overflow-hidden bg-[#0B141A]">
+        {mobilePanel === 'sidebar' && (
+          <div className="flex h-full flex-col">
+            {renderSidebarHeader()}
+            <Sidebar
+              instances={instances}
+              selectedInstance={selectedInstance}
+              onSelectInstance={handleSelectInstance}
+              loading={loading}
+              onAddInstance={() => setIsModalOpen(true)}
+              onEditInstance={(instance) => setEditingInstance(instance)}
+              compact
+            />
+          </div>
+        )}
+        {mobilePanel === 'contacts' && renderMobileContactList()}
+        {mobilePanel === 'chat' && renderMobileChatPanel()}
+      </div>
 
       {/* Tools / settings modals */}
       {selectedInstance && (
